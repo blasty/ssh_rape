@@ -68,7 +68,6 @@ signature signatures[]={
 };
 
 mem_mapping *mappings[MAX_MAPPING];
-int do_trace=0;
 
 void error( const char* format, ... ) {
 	va_list args;
@@ -129,7 +128,7 @@ void _attach(int pid) {
 		exit(-1);
 	}
 
-	waitpid(pid , NULL , WUNTRACED);
+	waitpid(pid, NULL, WUNTRACED);
 }
 
 void _detach(int pid) {
@@ -143,17 +142,12 @@ void _peek(int pid, unsigned long addr, void *ptr, int len) {
 	long word;
 	int count=0;
 
-	if (do_trace==1) printf("PEEK(addr:%lX, out:%p, len:%d) = ", addr, ptr, len);
-
 	while(len > 0) {
 		word = ptrace(PTRACE_PEEKTEXT, pid, addr+count, NULL);
-		if (do_trace==1) printf("%lX ", word);
 		memcpy((u8*)(ptr + count), &word, (len < 8) ? len : 8);
 		len -= 8;
 		count += 8;
 	}
-
-	if (do_trace==1) printf("\n");
 }
 
 void _peek_file(FILE *f, unsigned long addr, void *ptr, int len) {
@@ -167,7 +161,6 @@ void _poke(int pid, unsigned long addr, void *vptr,int len) {
 	u8 *w8=(u8*)&word;
 
 	count = 0;
-	if (do_trace==1) printf("POKE(addr:%lX, buf:%p, len:%d);\n", addr, vptr, len);
 
 	while (len > 0) {
 		if (len >= 8) {
