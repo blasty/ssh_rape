@@ -92,8 +92,15 @@ int _mmap(inject_ctx *ctx, void *addr, size_t len, int prot, int flags, int fd, 
 	if (waitpid(ctx->pid, &i, 0) < 0)
 		perror("waitpid");
 
+	// Get registers after the syscall
+	if (ptrace(PTRACE_GETREGS, ctx->pid, NULL, regs) < 0) {
+		perror("ptrace");
+		exit(-1);
+	}
+
 	ptrace(PTRACE_SETREGS, ctx->pid, NULL, &regs_bak);
 
+	// Return value of mmap()
 	maddr = regs->rax;
 
 	free(regs);
