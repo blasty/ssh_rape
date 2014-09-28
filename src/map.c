@@ -15,7 +15,8 @@ void map_init() {
 }
 
 void map_print(inject_ctx *ctx) {
-	int i, last_end = 0;
+	int i;
+	u64 last_end = 0;
 	mem_mapping *m;	
 
 	for(i = 0; i < ctx->num_maps; i++) {
@@ -24,7 +25,7 @@ void map_print(inject_ctx *ctx) {
 		if (last_end == 0)
 			info2("[%016lX -> %016lx]", m->start, m->end);
 		else
-			info2("[%016lX -> %016lx] <hole size:%d>", m->start, m->end, m->start-last_end);
+			info2("[%016lX -> %016lx] <hole size:%lu>", m->start, m->end, m->start-last_end);
 	
 		last_end = m->end;
 	}	
