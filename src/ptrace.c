@@ -36,8 +36,8 @@ void _peek(int pid, unsigned long addr, void *ptr, int len) {
 }
 
 void _poke(int pid, unsigned long addr, void *vptr,int len) {
-       	int count;
-       	long word;
+	int count;
+	long word;
 	u8 *w8=(u8*)&word;
 
 	count = 0;
@@ -83,8 +83,6 @@ int _mmap(inject_ctx *ctx, void *addr, size_t len, int prot, int flags, int fd, 
 		perror("ptrace");
 		exit(-1);
 	}
-
-	maddr = ctx->sc_addr;
 
 	if (ptrace(PTRACE_SINGLESTEP, ctx->pid, NULL, NULL) < 0)
 		printf("ss phail!\n");
