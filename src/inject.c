@@ -72,7 +72,7 @@ u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
 	rtop=0;
 
 	for(i=0; i<callcache_total; i++) {
-	    entry = &callcache[i];
+		entry = &callcache[i];
 		if (entry->dest < lea_addr) {
 			if (lea_addr - entry->dest < rdiff) {
 				rdiff = lea_addr - entry->dest;
@@ -181,7 +181,7 @@ int main(int argc, char *argv[]) {
 	callcache_total = get_callcachetotal();
 
 	for(i=0; i<callcache_total; i++) {
-	    entry = &callcache[i];
+		entry = &callcache[i];
 		if (entry->dest == signatures[0].addr) {
 			info("found call user_key_allowed @ 0x%lx", entry->addr);
 			call_user_key_allowed2 = entry->addr;
