@@ -3,12 +3,14 @@
 #include <inject.h>
 #include <types.h>
 #include <common.h>
+#include <callcache.h>
 
-u64 *callcache;
+callcache_entry *callcache;
 u32 callcache_total=0;
 
 void cache_calltable(inject_ctx *ctx) {
 	mem_mapping *mapping;
+	callcache_entry *entry;
 	int32_t *v;
 	int i, j, total=0;
 
@@ -27,9 +29,9 @@ void cache_calltable(inject_ctx *ctx) {
 	}
 
 	callcache_total = total;
-	callcache = malloc(total * 2 * sizeof(u64));
+	callcache = malloc(total * sizeof(callcache_entry));
 
-	memset(callcache, 0, total * 2 * sizeof(u64));
+	memset(callcache, 0, total * sizeof(callcache_entry));
 
 	total=0;
 
@@ -42,8 +44,9 @@ void cache_calltable(inject_ctx *ctx) {
 		for(j = 0; j < mapping->size - 5; j++) {
 			if (mapping->data[j] == 0xe8) {
 				v = (int32_t*)&mapping->data[j+1];
-				callcache[(total*2)+0] = mapping->start+j;
-				callcache[(total*2)+1] = mapping->start + j + 5 + *v;
+				entry = &callcache[total];
+				entry->addr = mapping->start+j;
+				entry->dest = mapping->start + j + 5 + *v;
 				total++;
 				j += 4;
 			}
@@ -51,7 +54,7 @@ void cache_calltable(inject_ctx *ctx) {
 	}
 }
 
-u64 *get_callcache() {
+callcache_entry *get_callcache() {
 	return callcache;
 }
 

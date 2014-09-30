@@ -10,7 +10,7 @@ typedef struct {
 
 void cache_calltable(inject_ctx *ctx);
 
-u64 *get_callcache();
+callcache_entry *get_callcache();
 u32 get_callcachetotal();
 
 #endif
