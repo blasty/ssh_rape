@@ -132,6 +132,9 @@ int main(int argc, char *argv[]) {
 	dynsym_sz = get_section(sshd_path, ".dynsym", &dynsym);
 	dynstr_sz = get_section(sshd_path, ".dynstr", &dynstr);
 
+	if (dynsym == 0 || dynstr == 0)
+		error("could not find dynsym.\n");
+
 	rexec_flag = ctx->elf_base + resolve_symbol(dynsym, dynsym_sz, (char*)dynstr, "rexec_flag");
 
 	if (rexec_flag == ctx->elf_base) {
@@ -139,6 +142,9 @@ int main(int argc, char *argv[]) {
 
 		symtab_sz = get_section(sshd_path, ".symtab", &symtab);
 		strtab_sz = get_section(sshd_path, ".strtab", &strtab);
+
+		if (symtab == 0 || strtab == 0)
+			error("could not find symtab.\n");
 
 		rexec_flag = ctx->elf_base + resolve_symbol(symtab, symtab_sz, (char*)strtab, "rexec_flag");
 
