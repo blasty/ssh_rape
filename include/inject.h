@@ -4,6 +4,8 @@
 #include <fcntl.h>
 #include <types.h>
 
+#define MAX_KEY_ALLOWED_CALLS 32
+
 typedef struct {
 	u64 start;
 	u64 end;

