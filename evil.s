@@ -48,10 +48,10 @@ key_equal:
 	callq *%rax
 
 	# key_free(found);
-	#lea found(%rip), %rdi
-	#mov (%rdi), %rdi
-	#mov $0x5555555566666666, %rax
-	#callq *%rax
+	lea found(%rip), %rdi
+	mov (%rdi), %rdi
+	mov $0x5555555566666666, %rax
+	callq *%rax
 
 	# return 1;
 	pop %rsi

