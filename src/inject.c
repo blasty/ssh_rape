@@ -241,7 +241,23 @@ int main(int argc, char *argv[]) {
 	rexec_flag = resolve_symbol_tab(ctx, "rexec_flag");
 
 	if (rexec_flag == 0) {
-		error("could not resolve rexec_flag :(");
+		u64 rexec_debug_lea = 0, rexec_test = 0;
+		u32 rexec_flag_offset = 0;
+		
+		info("could not resolve rexec_flag :(, trying alternative method..");
+		
+		rexec_debug_lea = lea_by_debugstr(
+			ctx, LEA_RDI, "Server will not fork when running in debugging mode."
+		);
+		
+		// Find the first 'test eax, eax' instruction after the debug string
+		rexec_test = find_next_opcode(ctx, rexec_debug_lea, (u8*)"\x85\xc0", 2);
+
+		// Get the rexec_flag offset from rip		
+		_peek(ctx->pid, rexec_test - 4, &rexec_flag_offset, 4);
+		
+		// Resolve absolute address of rip + rexec_flag_offset
+		rexec_flag = rexec_test + rexec_flag_offset;
 	}
 
 	info("rexec_flag\t\t= 0x%lx", rexec_flag); 
