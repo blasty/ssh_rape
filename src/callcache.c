@@ -5,8 +5,8 @@
 #include <common.h>
 #include <callcache.h>
 
-callcache_entry *callcache;
-u32 callcache_total=0;
+static callcache_entry *callcache;
+static u32 callcache_total=0;
 
 void cache_calltable(inject_ctx *ctx) {
 	mem_mapping *mapping;
@@ -54,10 +54,49 @@ void cache_calltable(inject_ctx *ctx) {
 	}
 }
 
+/*
+ * 	Returns the number of calls to function_addr found.
+ * 	Stores the locations of the call instructions in an array of u64 
+ * 	and stores a pointer to it in the call_list param.
+ */
+int find_calls(u64 *call_list, u64 function_addr) {
+	u64 *calls = NULL;
+	callcache_entry *entry;
+	int i, num_calls = 0;
+	
+	// Loop once to count the calls
+	for (i = 0; i < callcache_total; i++) {
+		entry = &callcache[i];
+		if (entry->dest == function_addr)
+			num_calls++;
+	}
+	
+	if (num_calls > 0) {
+		calls = calloc(num_calls, sizeof(u64));
+	
+		// Loop again to store the calls
+		num_calls = 0;
+		for (i = 0; i < callcache_total; i++) {
+			entry = &callcache[i];
+			if (entry->dest == function_addr)
+				calls[num_calls] = entry->addr;
+				num_calls++;
+		}
+	}
+	
+	call_list = calls;
+	return num_calls;
+}
+
 callcache_entry *get_callcache() {
 	return callcache;
 }
 
 u32 get_callcachetotal() {
 	return callcache_total;
+}
+
+void free_callcache() {
+	if (callcache != NULL)
+		free(callcache);
 }
