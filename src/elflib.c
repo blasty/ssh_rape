@@ -7,7 +7,7 @@
 #include <inject.h>
 #include <elflib.h>
 
-int get_section(char *fn, char *sect, unsigned char **ret) {
+int get_section(char *fn, char *sect, unsigned char **ret, u64 *sect_base) {
 	Elf64_Ehdr	*ehdr = malloc(sizeof(Elf64_Ehdr));
 	Elf64_Shdr	*shdr = malloc(sizeof(Elf64_Shdr));
 	unsigned char *str;
@@ -27,6 +27,7 @@ int get_section(char *fn, char *sect, unsigned char **ret) {
 		_peek_file(f, ehdr->e_shoff + (i * sizeof(Elf64_Shdr)), shdr, sizeof(Elf64_Shdr));
 		if (strcmp((char*)str+shdr->sh_name, sect) == 0) {
 			*ret = malloc(shdr->sh_size);
+			*sect_base = shdr->sh_addr;
 			_peek_file(f, shdr->sh_offset, *ret, shdr->sh_size);
 			break;
 		}
