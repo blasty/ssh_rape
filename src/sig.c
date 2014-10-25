@@ -97,12 +97,14 @@ u64 lea_by_debugstr(inject_ctx *ctx, u8 lea_reg, char *str) {
 	return lea_addr;
 }
 
-u64 find_prev_lea(inject_ctx *ctx, u8 lea_reg, u64 start_addr, u64 lea_addr) {
+u64 find_prev_load(inject_ctx *ctx, u8 load_ins, u8 lea_reg, 
+				  u64 start_addr, u64 lea_addr) {
 	int i, j;
 	mem_mapping *mapping;
-	char leabuf[]="\x48\x8d\x00\x00\x00\x00\x00";
+	char leabuf[]="\x48\x00\x00\x00\x00\x00\x00";
 	int *rptr = (int*)&leabuf[3];
 
+	leabuf[1] = load_ins;
 	leabuf[2] = lea_reg;
 
 	for(i = 0; i < ctx->num_maps; i++) {

