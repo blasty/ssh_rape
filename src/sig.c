@@ -177,7 +177,7 @@ u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
 
 u64 resolve_call_insn(inject_ctx *ctx, u64 call_insn_addr) {
 	u8 opcode;
-	u32 call;
+	int call;
 
 	_peek(ctx->pid, call_insn_addr, &opcode, 1);
 

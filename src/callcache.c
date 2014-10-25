@@ -59,7 +59,7 @@ void cache_calltable(inject_ctx *ctx) {
  * 	Stores the locations of the call instructions in an array of u64 
  * 	and stores a pointer to it in the call_list param.
  */
-int find_calls(u64 *call_list, u64 function_addr) {
+int find_calls(u64 **call_list, u64 function_addr) {
 	u64 *calls = NULL;
 	callcache_entry *entry;
 	int i, num_calls = 0;
@@ -78,13 +78,13 @@ int find_calls(u64 *call_list, u64 function_addr) {
 		num_calls = 0;
 		for (i = 0; i < callcache_total; i++) {
 			entry = &callcache[i];
-			if (entry->dest == function_addr)
-				calls[num_calls] = entry->addr;
-				num_calls++;
+			if (entry->dest == function_addr) {
+				calls[num_calls++] = entry->addr;
+			}
 		}
 	}
 	
-	call_list = calls;
+	*call_list = calls;
 	return num_calls;
 }
 
