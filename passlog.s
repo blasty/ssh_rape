@@ -1,6 +1,8 @@
-.global _start
+.global evil_hook, evil_hook_size
 
-_start:
+hook_start:
+	int3
+
 	# SC_open
 	mov $2, %rax
 	lea logpath(%rip), %rdi	
@@ -92,3 +94,9 @@ delim:
 
 newline:
 	.string "\n"
+	
+evil_hook_size:
+.quad	(evil_hook_size - hook_start)
+evil_hook:
+.quad	hook_start
+
