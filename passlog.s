@@ -11,6 +11,7 @@ hook_start:
 	push %r8
 	push %r9
 	push %rsi
+	push %rsi
 	push %rdi
 
 	# SC_open
@@ -28,7 +29,8 @@ hook_start:
 	lea delim(%rip), %rdi
 	call write_string
 
-	mov %rbx, %rdi
+	pop %rsi
+	mov %rsi, %rdi
 	call write_string
 
 	lea newline(%rip), %rdi
