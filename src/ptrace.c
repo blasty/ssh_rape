@@ -105,4 +105,3 @@ int _mmap(inject_ctx *ctx, void *addr, size_t len, int prot, int flags, int fd, 
 
 	return maddr;
 }
-

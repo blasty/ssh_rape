@@ -96,7 +96,7 @@ u32 get_callcachetotal() {
 	return callcache_total;
 }
 
-void free_callcache() {
+void callcache_free() {
 	if (callcache != NULL)
 		free(callcache);
 }

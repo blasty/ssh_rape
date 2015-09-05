@@ -89,6 +89,7 @@ u64 lea_by_debugstr(inject_ctx *ctx, u8 lea_reg, char *str) {
 		for(j = 0; j < mapping->size-7; j++) {
 			*rptr = str_addr - (mapping->start+j+7);
 			if (memcmp(mapping->data+j, leabuf, 7) == 0) {
+//				info("lea addr = 0x%llx", mapping->start+j);
 				lea_addr = mapping->start+j;
 			}
 		}
@@ -164,7 +165,7 @@ u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
 
 	for(i=0; i<callcache_total; i++) {
 		entry = &callcache[i];
-		if (entry->dest < lea_addr) {
+		if (entry->dest < lea_addr) { // && (entry->dest % 16) == 0) {
 			if (lea_addr - entry->dest < rdiff) {
 				rdiff = lea_addr - entry->dest;
 				rtop = entry->dest;

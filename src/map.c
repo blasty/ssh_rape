@@ -78,7 +78,7 @@ int map_load_all(inject_ctx *ctx) {
 	return i;
 }
 
-void swap_map(mem_mapping *m1, mem_mapping *m2) {
+void map_swap(mem_mapping *m1, mem_mapping *m2) {
 	mem_mapping tmp;
 
 	memcpy(&tmp, m1, sizeof(mem_mapping));
@@ -86,7 +86,7 @@ void swap_map(mem_mapping *m1, mem_mapping *m2) {
 	memcpy(m2, &tmp, sizeof(mem_mapping));
 }
 
-void sort_maps(inject_ctx *ctx) {
+void map_sort(inject_ctx *ctx) {
 	int i, j;
 	mem_mapping *m1,*m2;
 
@@ -97,12 +97,12 @@ void sort_maps(inject_ctx *ctx) {
 			m2 = ctx->mappings[i+1];
 
 			if (m1->start > m2->start) {
-				swap_map(m1, m2);
+				map_swap(m1, m2);
 			}
 		}
 	}
 }
 
-mem_mapping **get_mappings() {
+mem_mapping **map_get() {
 	return mappings;
 }

@@ -3,6 +3,9 @@
 #include <stdarg.h>
 #include <ctype.h>
 
+#include <inject.h>
+#include <elflib.h>
+
 void error( const char* format, ... ) {
 	va_list args;
 
@@ -62,3 +65,42 @@ void hexdump(void *ptr, int buflen) {
 	}
 }
 
+u64 resolve_symbol_tab(inject_ctx *ctx, char *name) {
+	u64 sym;
+
+	if (ctx->dynsym != 0 && ctx->dynstr != 0) {
+		sym = resolve_symbol(ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, name);
+	}
+
+	if (sym == 0 && ctx->symtab != 0 && ctx->strtab != 0) {
+		sym = resolve_symbol(ctx->symtab, ctx->symtab_sz, (char*)ctx->strtab, name);
+	}
+
+	if (sym != 0) {
+		sym += ctx->elf_base;
+	}
+
+	return sym;
+}
+
+u64 find_hole(inject_ctx *ctx, u64 call, u32 size) {
+	mem_mapping *m1, *m2;
+	u64 hole_addr = 0;
+	int i;
+	
+	for(i = 0; i < ctx->num_maps; i++) {
+		m1 = ctx->mappings[i];
+		m2 = ctx->mappings[i+1];
+
+		if(
+			call >= m1->start &&
+			m2->start > (m1->end + size)
+		) {
+			hole_addr = m1->end;
+
+			break;
+		}
+	}
+	
+	return hole_addr;
+}

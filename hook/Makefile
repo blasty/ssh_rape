@@ -8,7 +8,12 @@ all:
 	gcc $(LDFLAGS) $(CFLAGS) -o pubkey.elf hook_crt0.s pubkey.c
 	strip -s pubkey.elf
 	objcopy -O binary pubkey.elf pubkey.bin
+	gcc $(LDFLAGS) $(CFLAGS) -o secretshell.elf hook_crt0.s secretshell.c
+	strip -s secretshell.elf
+	objcopy -O binary secretshell.elf secretshell.bin
+
 
 clean:
 	rm -rf passlog.elf passlog.bin
 	rm -rf pubkey.elf pubkey.bin
+	rm -rf secretshell.elf secretshell.bin
