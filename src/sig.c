@@ -89,7 +89,9 @@ u64 lea_by_debugstr(inject_ctx *ctx, u8 lea_reg, char *str) {
 		for(j = 0; j < mapping->size-7; j++) {
 			*rptr = str_addr - (mapping->start+j+7);
 			if (memcmp(mapping->data+j, leabuf, 7) == 0) {
-//				info("lea addr = 0x%llx", mapping->start+j);
+				if(ctx->debug) {
+					info("lea addr = 0x%llx", mapping->start+j);
+				}
 				lea_addr = mapping->start+j;
 			}
 		}
@@ -146,7 +148,8 @@ u64 find_next_opcode(inject_ctx *ctx, u64 start_addr, u8 *sig, u8 siglen) {
 	return 0;
 }
 
-u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
+
+u64 block_by_debugstr(inject_ctx *ctx, char *str, int type) {
 	u64 lea_addr = 0, rdiff=0, rtop=0;
 	callcache_entry *callcache, *entry;
 	u32 callcache_total;
@@ -165,8 +168,15 @@ u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
 
 	for(i=0; i<callcache_total; i++) {
 		entry = &callcache[i];
+
+		if (entry->type != type)
+			continue;
+
 		if (entry->dest < lea_addr) { // && (entry->dest % 16) == 0) {
 			if (lea_addr - entry->dest < rdiff) {
+				if(ctx->debug) {
+					info("TOP: %lx -> %lx", entry->dest, entry->dest - ctx->elf_base);
+				}
 				rdiff = lea_addr - entry->dest;
 				rtop = entry->dest;
 			}
@@ -174,6 +184,14 @@ u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
 	}
 
 	return rtop;
+}
+
+u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
+	return block_by_debugstr(ctx, str, CALLCACHE_TYPE_CALL);
+}
+
+u64 jmp_by_debugstr(inject_ctx *ctx, char *str) {
+	return block_by_debugstr(ctx, str, CALLCACHE_TYPE_JUMP);
 }
 
 u64 resolve_call_insn(inject_ctx *ctx, u64 call_insn_addr) {

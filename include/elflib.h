@@ -6,6 +6,7 @@
 
 void _peek_file(FILE *f, unsigned long addr, void *ptr, int len);
 addr_t resolve_symbol(u8 *tab, int tab_size, char *str, char *sym);
+addr_t resolve_reloc(u8 *rela, int rela_size, u8 *tab, int tab_size, char *str, char *sym);
 int get_section(char *fn, char *sect, unsigned char **ret, u64 *);
 
 #endif

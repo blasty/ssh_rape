@@ -3,9 +3,13 @@
 
 #include <inject.h>
 
+#define CALLCACHE_TYPE_CALL 0
+#define CALLCACHE_TYPE_JUMP 1
+
 typedef struct {
 	u64 addr;
 	u64 dest;
+	u64 type;
 } callcache_entry;
 
 void cache_calltable(inject_ctx *ctx);

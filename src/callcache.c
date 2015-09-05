@@ -21,7 +21,7 @@ void cache_calltable(inject_ctx *ctx) {
 			continue;
 
 		for(j = 0; j < mapping->size - 5; j++) {
-			if (mapping->data[j] == 0xe8) {
+			if (mapping->data[j] == 0xe8 || mapping->data[j] == 0xe9) {
 				total++;
 				j += 4;
 			}
@@ -42,11 +42,12 @@ void cache_calltable(inject_ctx *ctx) {
 			continue;
 
 		for(j = 0; j < mapping->size - 5; j++) {
-			if (mapping->data[j] == 0xe8) {
+			if (mapping->data[j] == 0xe8 || mapping->data[j] == 0xe9) {
 				v = (int32_t*)&mapping->data[j+1];
 				entry = &callcache[total];
 				entry->addr = mapping->start+j;
 				entry->dest = mapping->start + j + 5 + *v;
+				entry->type = (mapping->data[j] - 0xe8);
 				total++;
 				j += 4;
 			}
@@ -78,7 +79,7 @@ int find_calls(u64 **call_list, u64 function_addr) {
 		num_calls = 0;
 		for (i = 0; i < callcache_total; i++) {
 			entry = &callcache[i];
-			if (entry->dest == function_addr) {
+			if (entry->dest == function_addr && entry->type == CALLCACHE_TYPE_CALL) {
 				calls[num_calls++] = entry->addr;
 			}
 		}

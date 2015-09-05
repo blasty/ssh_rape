@@ -55,7 +55,7 @@ void backdoor_menu_install(inject_ctx *ctx) {
 
 	for(i=0; i<callcache_total; i++) {
 		entry = &callcache[i];
-		if (entry->dest == process_input) {
+		if (entry->dest == process_input && entry->type == CALLCACHE_TYPE_CALL) {
 			if (hole_addr == 0) {
 				hole_addr = find_hole(ctx, entry->addr, 0x1000);
 				info("FIND HOLE %lx", hole_addr);

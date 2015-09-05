@@ -38,6 +38,26 @@ int get_section(char *fn, char *sect, unsigned char **ret, u64 *sect_base) {
 	return shdr->sh_size; 
 }
 
+addr_t resolve_reloc(u8 *rela, int rela_size, u8 *tab, int tab_size, char *str, char *sym) {
+	int i, symtab_index;
+	Elf64_Rela *r = (Elf64_Rela*)rela;
+	Elf64_Sym *s;
+
+	for(i=0; i < (rela_size / sizeof(Elf64_Rela)); i++) {
+		symtab_index = ELF64_R_SYM(r->r_info);
+		s = (Elf64_Sym*)(tab) + symtab_index;
+
+		if (strcmp(str + s->st_name, sym) == 0)
+			return r->r_offset;
+
+		//printf("RELOC[%04d]: %x %x '%s' (%d)\n", i, r->r_offset, r->r_info, str+s->st_name, s->st_name);
+
+		r++;
+	}
+
+	return 0;
+}
+
 addr_t resolve_symbol(u8 *tab, int tab_size, char *str, char *sym) {
 	int i;
 	Elf64_Sym *s = (Elf64_Sym*)tab;

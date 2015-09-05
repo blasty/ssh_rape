@@ -21,6 +21,7 @@ typedef struct {
 	u64 elf_base;
 	mem_mapping **mappings;
 	int num_maps;
+	int debug;
 
 	// DYNSYM
 	u8 *dynsym;
@@ -42,6 +43,11 @@ typedef struct {
 	u8 *got;
 	u64 got_base;
 	int got_sz;
+
+	// RELA
+	u8 *rela;
+	u64 rela_base;
+	int rela_sz;
 } inject_ctx;
 
 #endif

@@ -25,6 +25,7 @@ void inject_ctx_init(inject_ctx *ctx, pid_t pid) {
 	info("you gave me pid %d\n", pid);
 
 	ctx->pid = pid;
+	ctx->debug = 0;
 	_attach(ctx->pid);
 
 	info("slurping stuff to memory..");
@@ -51,10 +52,21 @@ void inject_ctx_init(inject_ctx *ctx, pid_t pid) {
 
 	// load symtabs
 	ctx->dynsym_sz = get_section(sshd_path, ".dynsym", &ctx->dynsym, &ctx->dynsym_base);
+	// if (ctx->dynsym != 0) { printf("## DYNSYM:\n"); hexdump(ctx->dynsym, ctx->dynsym_sz); }
+
 	ctx->dynstr_sz = get_section(sshd_path, ".dynstr", &ctx->dynstr, &ctx->dynstr_base);
+	// if (ctx->dynstr != 0) { printf("## DYNSTR:\n"); hexdump(ctx->dynstr, ctx->dynstr_sz); }
+
 	ctx->symtab_sz = get_section(sshd_path, ".symtab", &ctx->symtab, &ctx->symtab_base);
+	//if (ctx->symtab != 0) { printf("## SYMTAB:\n"); hexdump(ctx->symtab, ctx->symtab_sz); }
+
 	ctx->strtab_sz = get_section(sshd_path, ".strtab", &ctx->strtab, &ctx->strtab_base);
+	//if (ctx->strtab != 0) { printf("## STRTAB:\n"); hexdump(ctx->strtab, ctx->strtab_sz); }
+
 	ctx->got_sz    = get_section(sshd_path, ".got",    &ctx->got,    &ctx->got_base);
+	//if (ctx->got != 0) { printf("## GOT:\n"); hexdump(ctx->got, ctx->got_sz); }
+
+    ctx->rela_sz   = get_section(sshd_path, ".rela.plt",    &ctx->rela,    &ctx->rela_base);
 }
 
 void inject_ctx_deinit(inject_ctx *ctx) {

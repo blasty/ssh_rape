@@ -22,6 +22,7 @@ u64 lea_by_debugstr(inject_ctx *ctx, u8 lea_reg, char *str);
 u64 find_prev_load(inject_ctx *ctx, u8 load_ins, u8 lea_reg, u64 start_addr, u64 lea_addr);
 u64 find_next_opcode(inject_ctx *ctx, u64 start_addr, u8 *sig, u8 siglen);
 u64 sub_by_debugstr(inject_ctx *ctx, char *str);
+u64 jmp_by_debugstr(inject_ctx *ctx, char *str);
 u64 resolve_call_insn(inject_ctx *ctx, u64 call_insn_addr);
 
 #endif

