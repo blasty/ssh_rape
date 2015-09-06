@@ -23,6 +23,14 @@ u64 find_prev_load(inject_ctx *ctx, u8 load_ins, u8 lea_reg, u64 start_addr, u64
 u64 find_next_opcode(inject_ctx *ctx, u64 start_addr, u8 *sig, u8 siglen);
 u64 sub_by_debugstr(inject_ctx *ctx, char *str);
 u64 jmp_by_debugstr(inject_ctx *ctx, char *str);
+u64 prevcall_by_debugstr(inject_ctx *ctx, char *str);
 u64 resolve_call_insn(inject_ctx *ctx, u64 call_insn_addr);
+u64 find_callpair(u64 addr_a, u64 addr_b);
+u64 find_plt_entry(inject_ctx *ctx, u64 got_addr);
+u64 find_entrypoint(u64 addr);
+u64 find_entrypoint_inner(u64 addr, int cnt);
+u64 find_nearest_call(u64 start, u64 func);
+u64 prevcall_by_debugstr(inject_ctx *ctx, char *str);
+u64 plt_by_name(inject_ctx *ctx, char *name);
 
 #endif

@@ -11,7 +11,7 @@ static u32 callcache_total=0;
 void cache_calltable(inject_ctx *ctx) {
 	mem_mapping *mapping;
 	callcache_entry *entry;
-	int32_t *v;
+	int32_t v;
 	int i, j, total=0;
 
 	for(i = 0; i < ctx->num_maps; i++) {
@@ -43,11 +43,13 @@ void cache_calltable(inject_ctx *ctx) {
 
 		for(j = 0; j < mapping->size - 5; j++) {
 			if (mapping->data[j] == 0xe8 || mapping->data[j] == 0xe9) {
-				v = (int32_t*)&mapping->data[j+1];
+				memcpy(&v, &mapping->data[j+1], 4);
+
 				entry = &callcache[total];
 				entry->addr = mapping->start+j;
-				entry->dest = mapping->start + j + 5 + *v;
+				entry->dest = mapping->start + j + 5 + v;
 				entry->type = (mapping->data[j] - 0xe8);
+
 				total++;
 				j += 4;
 			}

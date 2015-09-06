@@ -22,6 +22,7 @@ typedef struct {
 	mem_mapping **mappings;
 	int num_maps;
 	int debug;
+	int is_openssh7;
 
 	// DYNSYM
 	u8 *dynsym;

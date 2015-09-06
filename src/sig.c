@@ -6,6 +6,7 @@
 #include <callcache.h>
 #include <ptrace.h>
 #include <sig.h>
+#include <elflib.h>
 
 u64 find_sig(u8 *b, int maxlen, u8 *sig, int siglen) {
 	int i;
@@ -66,6 +67,110 @@ u64 find_call(inject_ctx *ctx, u64 addr) {
 	return call_addr;
 }
 
+u64 prevcall_by_debugstr(inject_ctx *ctx, char *str) {
+	callcache_entry *entry, *callcache;
+	int callcache_total;
+	int i;
+
+	u64 lea_addr = lea_by_debugstr(ctx, LEA_RDI, str);
+	u64 prevcall = 0;
+	u64 top = 0;
+
+	callcache = get_callcache();
+	callcache_total = get_callcachetotal();
+
+	for (i = 0; i < callcache_total; i++) {
+		entry = &callcache[i];
+
+		if (entry->type == CALLCACHE_TYPE_CALL && entry->addr < lea_addr && entry->addr > top) {
+			top = entry->addr;
+			prevcall = entry->dest;
+		}
+	}
+
+	return prevcall;
+}
+
+u64 find_plt_entry(inject_ctx *ctx, u64 got_addr) {
+	unsigned char opcode[]="\xff\x25\x00\x00\x00\x00";
+	int i, j;
+	int *rptr = (int*)&opcode[2];
+	mem_mapping *mapping;
+	u64 plt_entry = 0;
+
+	for(i = 0; i < ctx->num_maps; i++) {
+		mapping = ctx->mappings[i];
+
+		if ((mapping->perm & (MEM_R | MEM_X)) != (MEM_R | MEM_X))
+			continue;
+
+		for(j = 0; j < mapping->size-6; j++) {
+			*rptr = got_addr - (mapping->start + j + 6);
+
+			if (memcmp(mapping->data+j, opcode, 6) == 0) {
+				plt_entry = mapping->start + j;
+
+				if (ctx->debug)
+					info("plt_entry = 0x%lx", plt_entry);
+			}
+		}
+	}
+
+	return plt_entry;
+}
+
+u64 find_entrypoint(u64 addr) {
+	return find_entrypoint_inner(addr, 1);
+}
+
+u64 find_entrypoint_inner(u64 addr, int cnt) {
+	callcache_entry *entry, *entry_b, *callcache;
+	u64 result=0;
+	int callcache_total, i, j, acnt=0;
+
+	callcache = get_callcache();
+	callcache_total = get_callcachetotal();
+
+	for (i = 0; i < callcache_total; i++) {
+		entry = &callcache[i];
+		if (entry->type == CALLCACHE_TYPE_CALL && entry->dest < addr && entry->dest > result) {
+			acnt = 0;
+
+			for(j=0; j<callcache_total; j++) {
+				entry_b = &callcache[j];
+				if (entry_b->dest == entry->dest)
+					acnt++;
+			}
+
+			if (acnt >= cnt) {
+				result = entry->dest;
+			}
+		}
+	}
+
+	return result;
+}
+
+u64 find_callpair(u64 addr_a, u64 addr_b) {
+	callcache_entry *entry_a, *entry_b, *callcache;
+	u64 result;
+	int callcache_total, i;
+
+	callcache = get_callcache();
+	callcache_total = get_callcachetotal();
+
+	for (i = 0; i < callcache_total-1; i++) {
+		entry_a = &callcache[i];
+		entry_b = &callcache[i+1];
+
+		if (entry_a->dest == addr_a && entry_b->dest == addr_b) {
+			result = entry_a->addr;
+		}
+	}
+
+	return result;
+}
+
 u64 lea_by_debugstr(inject_ctx *ctx, u8 lea_reg, char *str) {
 	u64 lea_addr, str_addr;
 	char leabuf[]="\x48\x8d\x00\x00\x00\x00\x00";
@@ -89,9 +194,9 @@ u64 lea_by_debugstr(inject_ctx *ctx, u8 lea_reg, char *str) {
 		for(j = 0; j < mapping->size-7; j++) {
 			*rptr = str_addr - (mapping->start+j+7);
 			if (memcmp(mapping->data+j, leabuf, 7) == 0) {
-				if(ctx->debug) {
+				if(ctx->debug)
 					info("lea addr = 0x%llx", mapping->start+j);
-				}
+
 				lea_addr = mapping->start+j;
 			}
 		}
@@ -148,9 +253,21 @@ u64 find_next_opcode(inject_ctx *ctx, u64 start_addr, u8 *sig, u8 siglen) {
 	return 0;
 }
 
-
 u64 block_by_debugstr(inject_ctx *ctx, char *str, int type) {
-	u64 lea_addr = 0, rdiff=0, rtop=0;
+	u64 lea_addr = 0;
+
+	lea_addr = lea_by_debugstr(ctx, LEA_RDI, str);
+
+	if (lea_addr == 0) 
+		error("could not find 'lea' insn for str '%s'", str);
+
+	info("lea = 0x%lx", lea_addr);
+
+	return find_entrypoint_inner(lea_addr, 1);
+}
+
+u64 find_nearest_call(u64 start, u64 func) {
+	u64 top=0;
 	callcache_entry *callcache, *entry;
 	u32 callcache_total;
 	int i;
@@ -158,32 +275,18 @@ u64 block_by_debugstr(inject_ctx *ctx, char *str, int type) {
 	callcache = get_callcache();
 	callcache_total = get_callcachetotal();
 
-	lea_addr = lea_by_debugstr(ctx, LEA_RDI, str);
-
-	if (lea_addr == 0) 
-		error("could not find 'lea' insn for str '%s'", str);
-
-	rdiff=0x313337;
-	rtop=0;
-
 	for(i=0; i<callcache_total; i++) {
 		entry = &callcache[i];
 
-		if (entry->type != type)
-			continue;
-
-		if (entry->dest < lea_addr) { // && (entry->dest % 16) == 0) {
-			if (lea_addr - entry->dest < rdiff) {
-				if(ctx->debug) {
-					info("TOP: %lx -> %lx", entry->dest, entry->dest - ctx->elf_base);
-				}
-				rdiff = lea_addr - entry->dest;
-				rtop = entry->dest;
-			}
+		if (
+			entry->type == CALLCACHE_TYPE_CALL && entry->dest == func &&
+			entry->addr > start && (entry->addr < top || top == 0)
+		) {
+			top = entry->addr;
 		}
 	}
 
-	return rtop;
+	return top;
 }
 
 u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
@@ -206,4 +309,10 @@ u64 resolve_call_insn(inject_ctx *ctx, u64 call_insn_addr) {
 	_peek(ctx->pid, call_insn_addr+1, &call, 4);
 
 	return call_insn_addr + 5 + call;
+}
+
+u64 plt_by_name(inject_ctx *ctx, char *name) {
+	return find_plt_entry(ctx, ctx->elf_base + resolve_reloc(
+		ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, name
+	));
 }
