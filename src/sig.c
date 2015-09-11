@@ -151,21 +151,41 @@ u64 find_entrypoint_inner(u64 addr, int cnt) {
 	return result;
 }
 
+int find_next_call_in_table(callcache_entry *callcache, int start_idx, int num_items) {
+	int i;
+
+	for(i=start_idx; i<num_items; i++) {
+		if (callcache[i].type == CALLCACHE_TYPE_CALL)
+			return i;
+	}
+
+	return -1;
+}
+
 u64 find_callpair(u64 addr_a, u64 addr_b) {
 	callcache_entry *entry_a, *entry_b, *callcache;
-	u64 result;
+	u64 result = 0;
 	int callcache_total, i;
+	int idx_a, idx_b;
 
 	callcache = get_callcache();
 	callcache_total = get_callcachetotal();
 
-	for (i = 0; i < callcache_total-1; i++) {
-		entry_a = &callcache[i];
-		entry_b = &callcache[i+1];
+	while(i < callcache_total-1) {
+		idx_a = find_next_call_in_table(callcache, i, callcache_total);
+		idx_b = find_next_call_in_table(callcache, idx_a+1, callcache_total);
+
+		if (idx_a == -1 || idx_b == -1)
+			break;
+
+		entry_a = &callcache[idx_a];
+		entry_b = &callcache[idx_b];
 
 		if (entry_a->dest == addr_a && entry_b->dest == addr_b) {
 			result = entry_a->addr;
 		}
+
+		i = idx_b;
 	}
 
 	return result;
