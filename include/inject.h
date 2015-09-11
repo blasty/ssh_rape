@@ -23,6 +23,7 @@ typedef struct {
 	int num_maps;
 	int debug;
 	int uses_new_key_system;
+	u64 config_addr;
 
 	// DYNSYM
 	u8 *dynsym;

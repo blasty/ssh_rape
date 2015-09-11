@@ -104,3 +104,18 @@ u64 find_hole(inject_ctx *ctx, u64 call, u32 size) {
 	
 	return hole_addr;
 }
+
+int patch_placeholder(u8 *blob, u32 len, u64 placeholder, u64 realvalue) {
+	int i, found=0;
+
+	for(i = 0; i < len-sizeof(u64); i++) {
+		u64 *vptr = (u64*)(blob + i);
+		if (*vptr == placeholder) {
+			info("patching 0x%lx with 0x%lx at 0x%x", placeholder, realvalue, i);
+			*vptr = realvalue;
+			found = 1;
+		}
+	}
+
+	return found;
+}

