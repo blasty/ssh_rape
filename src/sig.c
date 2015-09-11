@@ -165,7 +165,7 @@ int find_next_call_in_table(callcache_entry *callcache, int start_idx, int num_i
 u64 find_callpair(u64 addr_a, u64 addr_b) {
 	callcache_entry *entry_a, *entry_b, *callcache;
 	u64 result = 0;
-	int callcache_total, i;
+	int callcache_total, i = 0;
 	int idx_a, idx_b;
 
 	callcache = get_callcache();

