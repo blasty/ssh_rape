@@ -58,14 +58,17 @@ void inject_ctx_init(inject_ctx *ctx, pid_t pid) {
 	fread(sshd_buf, sz, 1, f);
 	fclose(f);
 
-	ctx->uses_new_key_system = 0;
+	ctx->uses_new_key_system = 1;
 
 	for(i = 0; i < sz; i++) {
 		if (memcmp(sshd_buf + i, "key_new: RSA_new failed", 23) == 0) {
-			ctx->uses_new_key_system = 1;
-			info("oh, we're dealing with an sshd that probably uses sshkey_* api..");
+			ctx->uses_new_key_system = 0;
 			break;
 		}
+	}
+
+	if (ctx->uses_new_key_system) {
+		info("oh, we're dealing with an sshd that probably uses sshkey_* api..");
 	}
 
 	free(sshd_buf);
