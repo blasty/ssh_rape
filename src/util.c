@@ -1,7 +1,12 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <ctype.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <inject.h>
 #include <elflib.h>
@@ -118,4 +123,21 @@ int patch_placeholder(u8 *blob, u32 len, u64 placeholder, u64 realvalue) {
 	}
 
 	return found;
+}
+
+int convert_hostport_pair(char *s, uint32_t *ip, uint16_t *port) {
+	char ipt[64], *p;
+
+	p = strchr(s, ':');
+
+	if (p == NULL)
+		return 0;
+
+	memset(ipt, 0, 64);
+	memcpy(ipt, s, p-s);
+
+	*ip = inet_addr(ipt);
+	*port = htons(atoi(p+1));
+
+	return 1;
 }

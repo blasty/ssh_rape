@@ -52,4 +52,9 @@ typedef struct {
 	int rela_sz;
 } inject_ctx;
 
+void inject_ctx_init(inject_ctx *ctx, pid_t pid);
+void inject_ctx_deinit(inject_ctx *ctx);
+u64 inject_resolve_rexec(inject_ctx *ctx);
+void inject_ctx_map_reload(inject_ctx *ctx);
+
 #endif

