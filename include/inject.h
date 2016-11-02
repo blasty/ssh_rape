@@ -47,9 +47,12 @@ typedef struct {
 	int got_sz;
 
 	// RELA
-	u8 *rela;
-	u64 rela_base;
-	int rela_sz;
+	u8 *rela_plt;
+	u64 rela_plt_base;
+	int rela_plt_sz;
+	u8 *rela_dyn;
+	u64 rela_dyn_base;
+	int rela_dyn_sz;
 } inject_ctx;
 
 void inject_ctx_init(inject_ctx *ctx, pid_t pid);

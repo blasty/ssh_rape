@@ -31,6 +31,7 @@ u64 find_entrypoint(u64 addr);
 u64 find_entrypoint_inner(u64 addr, int cnt);
 u64 find_nearest_call(u64 start, u64 func);
 u64 prevcall_by_debugstr(inject_ctx *ctx, char *str);
+addr_t resolve_reloc_all(inject_ctx *ctx, char *sym);
 u64 plt_by_name(inject_ctx *ctx, char *name);
 
 #endif

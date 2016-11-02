@@ -331,8 +331,25 @@ u64 resolve_call_insn(inject_ctx *ctx, u64 call_insn_addr) {
 	return call_insn_addr + 5 + call;
 }
 
+addr_t resolve_reloc_all(inject_ctx *ctx, char *sym) {
+	u64 addr = 0;
+ 
+	if (ctx->rela_plt_sz != 0) {
+		addr	= resolve_reloc(
+			ctx->rela_plt, ctx->rela_plt_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, sym
+		);
+	}
+
+	if (addr == 0) {
+		addr	= resolve_reloc(
+			ctx->rela_dyn, ctx->rela_dyn_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, sym
+		);
+	}
+
+	return addr;
+}
+
+
 u64 plt_by_name(inject_ctx *ctx, char *name) {
-	return find_plt_entry(ctx, ctx->elf_base + resolve_reloc(
-		ctx->rela, ctx->rela_sz, ctx->dynsym, ctx->dynsym_sz, (char*)ctx->dynstr, name
-	));
+	return find_plt_entry(ctx, ctx->elf_base + resolve_reloc_all(ctx, name));
 }
