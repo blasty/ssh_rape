@@ -98,7 +98,7 @@ u64 find_hole(inject_ctx *ctx, u64 call, u32 size) {
 		m2 = ctx->mappings[i+1];
 
 		if(
-			call >= m1->start &&
+			((m1->end - call) < 0x80000000) &&
 			m2->start > (m1->end + size)
 		) {
 			hole_addr = m1->end;
