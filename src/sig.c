@@ -67,12 +67,12 @@ u64 find_call(inject_ctx *ctx, u64 addr) {
 	return call_addr;
 }
 
-u64 prevcall_by_debugstr(inject_ctx *ctx, char *str) {
+u64 prevcall_by_debugstr(inject_ctx *ctx, u8 lea_reg, char *str) {
 	callcache_entry *entry, *callcache;
 	int callcache_total;
 	int i;
 
-	u64 lea_addr = lea_by_debugstr(ctx, LEA_RDI, str);
+	u64 lea_addr = lea_by_debugstr(ctx, lea_reg, str);
 	u64 prevcall = 0;
 	u64 top = 0;
 
@@ -90,6 +90,15 @@ u64 prevcall_by_debugstr(inject_ctx *ctx, char *str) {
 
 	return prevcall;
 }
+
+u64 prevcall_by_debugstr0(inject_ctx *ctx, char *str) {
+	return prevcall_by_debugstr(ctx, LEA_RDI, str);
+}
+
+u64 prevcall_by_debugstr1(inject_ctx *ctx, char *str) {
+	return prevcall_by_debugstr(ctx, LEA_RSI, str);
+}
+
 
 u64 find_plt_entry(inject_ctx *ctx, u64 got_addr) {
 	unsigned char opcode[]="\xff\x25\x00\x00\x00\x00";
@@ -273,10 +282,10 @@ u64 find_next_opcode(inject_ctx *ctx, u64 start_addr, u8 *sig, u8 siglen) {
 	return 0;
 }
 
-u64 block_by_debugstr(inject_ctx *ctx, char *str, int type) {
+u64 block_by_debugstr(inject_ctx *ctx, u8 lea_reg, char *str, int type) {
 	u64 lea_addr = 0;
 
-	lea_addr = lea_by_debugstr(ctx, LEA_RDI, str);
+	lea_addr = lea_by_debugstr(ctx, lea_reg, str);
 
 	if (lea_addr == 0) 
 		error("could not find 'lea' insn for str '%s'", str);
@@ -310,11 +319,15 @@ u64 find_nearest_call(u64 start, u64 func) {
 }
 
 u64 sub_by_debugstr(inject_ctx *ctx, char *str) {
-	return block_by_debugstr(ctx, str, CALLCACHE_TYPE_CALL);
+	return block_by_debugstr(ctx, LEA_RDI, str, CALLCACHE_TYPE_CALL);
+}
+
+u64 sub_by_debugstr1(inject_ctx *ctx, char *str) {
+	return block_by_debugstr(ctx, LEA_RSI, str, CALLCACHE_TYPE_CALL);
 }
 
 u64 jmp_by_debugstr(inject_ctx *ctx, char *str) {
-	return block_by_debugstr(ctx, str, CALLCACHE_TYPE_JUMP);
+	return block_by_debugstr(ctx, LEA_RDI, str, CALLCACHE_TYPE_JUMP);
 }
 
 u64 resolve_call_insn(inject_ctx *ctx, u64 call_insn_addr) {

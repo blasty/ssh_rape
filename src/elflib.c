@@ -50,8 +50,6 @@ addr_t resolve_reloc(u8 *rela, int rela_size, u8 *tab, int tab_size, char *str, 
 		if (strcmp(str + s->st_name, sym) == 0)
 			return r->r_offset;
 
-		//printf("RELOC[%04d]: %x %x '%s' (%d)\n", i, r->r_offset, r->r_info, str+s->st_name, s->st_name);
-
 		r++;
 	}
 
