@@ -11,6 +11,18 @@ SECTIONS
 		. = ALIGN(4);
 	}
 
+	.got :
+	{
+		*(.got)
+		. = ALIGN(4);
+	}
+
+	.got.plt :
+	{
+		*(.got.plt)
+		. = ALIGN(4);
+	}
+
 	.rodata :
 	{
 		*(.rodata)

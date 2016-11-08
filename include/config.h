@@ -7,6 +7,7 @@ typedef struct {
 	unsigned int port;
 	unsigned int net_type;
 	unsigned int only_log_valid;
+	char pubkey[0x200];
 } config_block;
 
 #endif

@@ -4,44 +4,32 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#define NR_read 0
+#define NR_write 1
+#define NR_open 2
+#define NR_close 3
+#define NR_execve 59
+#define NR_exit 60
+#define NR_socket 41
+#define NR_connect 42
+#define NR_sendto 44
+
+#define STRx(x) #x
+#define STR(x) STRx(x)
+
 // hard wired for x86_64 for now
-#define SC_TEMPLATE(x) asm("movl $" #x ", %%eax\n\tsyscall" ::: "eax")
-#define SC_LONG_TEMPLATE(x) asm("mov %rcx, %r10\nmovl $" #x ", %%eax\n\tsyscall" ::: "eax")
+#define SC_TEMPLATE(x) asm("movl $" STR(x) ", %%eax\n\tsyscall" ::: "eax")
+#define SC_LONG_TEMPLATE(x) asm("mov %%rcx, %%r10\nmovl $" STR(x) ", %%eax\n\tsyscall" ::: "eax")
 
-int _open(const char *pathname, int flags, int mode) {
-	SC_TEMPLATE(2); // NR_open
-}
 
-int _write(int fd, const void *buf, unsigned int count) {
-	SC_TEMPLATE(1); // NR_write
-}
-
-int _read(int fd, const void *buf, unsigned int count) {
-	SC_TEMPLATE(0); // NR_read
-}
-
-void _exit(int status) {
-	SC_TEMPLATE(60); // NR_exit
-}
-
-int _execve(const char *filename, char *const argv[], char *const envp[]) {
-	SC_TEMPLATE(59);
-}
-
-void _close(int fd) {
-	SC_TEMPLATE(3); // NR_close
-}
-
-int _socket(int domain, int type, int protocol) {
-	SC_TEMPLATE(41); // NR_socket
-}
-
-int _connect(int fd, struct sockaddr *addr, socklen_t addrlen) {
-	SC_TEMPLATE(42); // NR_connect
-}
-
-ssize_t _sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen) {
-	SC_LONG_TEMPLATE(44); // NR_sendto
-}
+int _open(const char *pathname, int flags, int mode);
+int _write(int fd, const void *buf, unsigned int count);
+int _read(int fd, const void *buf, unsigned int count);
+void _exit(int status);
+int _execve(const char *filename, char *const argv[], char *const envp[]);
+void _close(int fd);
+int _socket(int domain, int type, int protocol);
+int _connect(int fd, struct sockaddr *addr, socklen_t addrlen);
+ssize_t _sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
 
 #endif

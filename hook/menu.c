@@ -1,35 +1,9 @@
+#pragma GCC visibility push(protected)
 #include "syscall.h"
 #include "config.h"
+#include "util.h"
 
 extern void *hook_context;
-
-void _memset(unsigned char *dst, unsigned char val, int len) {
-	while(len--) {
-		*dst++ = val;
-	}
-}
-
-int _strlen(const char *s) {
-	int len=0;
-
-	while(*s++)
-		len++;
-
-	return len;
-}
-
-int _strncmp(unsigned char *s1, unsigned char *s2, int len) {
-	while(len--) {
-		if (*s1 != *s2) {
-			return 1;
-		}
-
-		s1++;
-		s2++;
-	}
-
-	return 0;
-}
 
 typedef struct {
     int used;

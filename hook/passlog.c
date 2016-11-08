@@ -1,5 +1,7 @@
+#pragma GCC visibility push(protected)
 #include "syscall.h"
 #include "config.h"
+#include "util.h"
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -9,36 +11,6 @@
 #define NET_TYPE_UDP 2
 
 extern void *hook_context;
-
-int _strlen(const char *s) {
-	int len=0;
-
-	while(*s++)
-		len++;
-
-	return len;
-}
-
-void _strcpy(char *dst, char *src) {
-	while(*src) {
-		*dst = *src;
-		dst++; src++;
-	}
-}
-
-void _strcat(char *dst, char *src) {
-	while(*dst) {
-		dst++;
-	}
-
-	_strcpy(dst, src);
-}
-
-void _memset(unsigned char *dst, unsigned char val, int len) {
-	while(len--) {
-		*dst++ = val;
-	}
-}
 
 typedef int (*f_auth_passwd)(void *authctx, char *pass);
 
