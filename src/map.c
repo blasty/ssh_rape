@@ -66,7 +66,6 @@ int map_load_all(inject_ctx *ctx) {
 		map_load(ctx, mappings[i], line);
 
 		if ((mappings[i]->perm & MEM_X) && strstr(line, "sshd") != NULL) {
-			info("found sshd ELF base @ 0x%lx", mappings[i]->start);
 			ctx->elf_base = mappings[i]->start;
 		}
 

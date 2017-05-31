@@ -17,9 +17,11 @@ void _strcpy(char *dst, char *src) {
 	*dst++ = '\0';
 }
 
-void _memset(unsigned char *dst, unsigned char val, int len) {
+void _memset(void *dst, unsigned char val, int len) {
+	unsigned char *dst8 = dst;
+
 	while(len--) {
-		*dst++ = val;
+		*dst8++ = val;
 	}
 }
 

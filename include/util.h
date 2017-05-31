@@ -9,6 +9,7 @@
 void error( const char* format, ... );
 void info( const char* format, ... );
 void info2( const char* format, ... );
+void mod_banner( const char* format, ... );
 void hexdump(void *ptr, int buflen);
 
 u64 resolve_symbol_tab(inject_ctx *ctx, char *name);
